@@ -1,84 +1,117 @@
 <!doctype html>
-.msg{padding:6px;border-bottom:1px solid #f0f0f0}
-.meta{font-size:12px;color:#666}
-</style>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <title>YouTube Live Chat Viewer</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial; padding:20px; max-width:900px; margin:auto}
+    header{display:flex; gap:8px; align-items:center; margin-bottom:12px}
+    input[type="text"]{flex:1; padding:8px; font-size:16px}
+    button{padding:8px 12px; font-size:16px}
+    #status{margin-left:8px; font-size:14px}
+    #logs{border:1px solid #ddd; padding:8px; height:60vh; overflow:auto; background:#fafafa}
+    .chat{display:flex; gap:10px; padding:6px 4px; border-bottom:1px solid #eee; align-items:center}
+    .thumb{width:40px; height:40px; border-radius:6px; object-fit:cover}
+    .meta{font-size:13px; color:#333}
+    .msg{font-size:15px; margin-top:2px}
+  </style>
 </head>
 <body>
-<h1>YouTube ライブチャット (簡易)</h1>
-<p>ライブ URL を入力して <strong>Connect</strong> を押すとコメントをリアルタイムで受信します。</p>
+  <h1>YouTubeライブ コメント (リアルタイム)</h1>
 
+  <div id="controls">
+    <div style="display:flex; align-items:center;">
+      <input id="videoUrl" type="text" placeholder="https://www.youtube.com/watch?v=XXXXX または https://www.youtube.com/live/XXXXX" />
+      <button id="connectBtn">接続</button>
+      <span id="status">未接続</span>
+    </div>
+  </div>
 
-<!-- ここをあなたの WebSocket サーバのエンドポイントに変更してください -->
-<script>
-const WS_SERVER = 'wss://comment-viewer.vercel.app';
-</script>
+  <div id="logs" aria-live="polite"></div>
 
+  <script>
+    // ここを自身の WebSocket サーバーに変更
+    const WS_SERVER = "wss://comment-viewer.vercel.app";
 
-<div>
-<input id="url" type="text" placeholder="https://www.youtube.com/watch?v=... または https://www.youtube.com/live/..." />
-<button id="connect">Connect</button>
-<span id="status">Disconnected</span>
-</div>
+    const connectBtn = document.getElementById("connectBtn");
+    const videoUrlInput = document.getElementById("videoUrl");
+    const statusEl = document.getElementById("status");
+    const logs = document.getElementById("logs");
 
+    let ws = null;
+    let subscribedUrl = null;
 
-<div id="messages"></div>
+    function appendChat(chat){
+      const el = document.createElement("div");
+      el.className = "chat";
+      const thumb = document.createElement("img");
+      thumb.className = "thumb";
+      thumb.src = chat.authorThumbnail || "";
+      thumb.alt = chat.author || "";
+      thumb.onerror = () => { thumb.style.display = 'none'; };
+      const body = document.createElement("div");
+      body.style.flex = "1";
+      body.innerHTML = `<div class="meta"><strong>${escapeHtml(chat.author||"匿名")}</strong> <span style="color:#666; font-size:12px;">${new Date(chat.timestamp||Date.now()).toLocaleTimeString()}</span></div>
+                        <div class="msg">${escapeHtml(chat.message||"")}</div>`;
+      el.appendChild(thumb);
+      el.appendChild(body);
+      logs.appendChild(el);
+      logs.scrollTop = logs.scrollHeight;
+    }
 
+    function escapeHtml(s){
+      return String(s)
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;")
+        .replace(/"/g,"&quot;")
+        .replace(/'/g,"&#039;");
+    }
 
-<script>
-let ws = null;
-const urlInput = document.getElementById('url');
-const connectBtn = document.getElementById('connect');
-const statusEl = document.getElementById('status');
-const messagesEl = document.getElementById('messages');
+    function setStatus(s){
+      statusEl.textContent = s;
+    }
 
+    connectBtn.addEventListener("click", () => {
+      const url = videoUrlInput.value.trim();
+      if(!url) { alert("YouTubeのライブURLを入力してください"); return; }
+      if(!ws || ws.readyState !== WebSocket.OPEN){
+        ws = new WebSocket(WS_SERVER);
+        setStatus("接続中...");
+        ws.addEventListener("open", () => {
+          setStatus("接続済み");
+          // subscribe メッセージを送る（サーバ側とプロトコルを合わせる）
+          ws.send(JSON.stringify({ type: "subscribe", url }));
+          subscribedUrl = url;
+        });
+        ws.addEventListener("message", (ev) => {
+          try{
+            const msg = JSON.parse(ev.data);
+            if(msg.type === "chat") appendChat(msg.data);
+            else if(msg.type === "info") {
+              // server info
+              const p = document.createElement("div");
+              p.textContent = "[info] " + (msg.text||"");
+              logs.appendChild(p);
+            }
+          }catch(e){
+            console.warn("message parse error", e);
+          }
+        });
+        ws.addEventListener("close", () => setStatus("切断"));
+        ws.addEventListener("error", (e) => setStatus("エラー"));
+      } else {
+        // already connected, just subscribe a new url
+        ws.send(JSON.stringify({ type: "subscribe", url }));
+        subscribedUrl = url;
+      }
+    });
 
-function appendMessage(obj){
-const el = document.createElement('div');
-el.className = 'msg';
-el.innerHTML = `<div class="meta">${obj.author?.name ?? 'unknown'} <span>—</span> <small>${new Date().toLocaleTimeString()}</small></div><div>${obj.message ?? ''}</div>`;
-messagesEl.appendChild(el);
-messagesEl.scrollTop = messagesEl.scrollHeight;
-}
-
-
-connectBtn.addEventListener('click', ()=>{
-if(!WS_SERVER || WS_SERVER.startsWith('wss://your-')){
-alert('index.html の WS_SERVER をあなたの wss エンドポイントに書き換えてください');
-return;
-}
-if(ws && ws.readyState === WebSocket.OPEN){
-ws.close();
-return;
-}
-
-
-ws = new WebSocket(WS_SERVER);
-statusEl.textContent = 'Connecting...';
-
-
-ws.addEventListener('open', ()=>{
-statusEl.textContent = 'Connected';
-const rawUrl = urlInput.value.trim();
-ws.send(JSON.stringify({action:'connect', url: rawUrl}));
-});
-
-
-ws.addEventListener('message', (ev)=>{
-try{
-const data = JSON.parse(ev.data);
-if(data.type === 'message') appendMessage(data);
-else if(data.type === 'system'){
-const el = document.createElement('div'); el.className='msg'; el.innerHTML = `<div class="meta">[system]</div><div>${data.text}</div>`; messagesEl.appendChild(el);
-}
-}catch(e){
-console.warn('非 JSON メッセージ', ev.data);
-}
-});
-
-
-ws.addEventListener('close', ()=>{ statusEl.textContent='Disconnected'; });
-ws.addEventListener('error', (e)=>{ statusEl.textContent='Error'; console.error(e); });
-});
-</script>
+    // 自動切断のための unload ハンドラ
+    window.addEventListener("beforeunload", () => {
+      if(ws && ws.readyState === WebSocket.OPEN) ws.close();
+    });
+  </script>
 </body>
 </html>
