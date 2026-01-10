@@ -560,8 +560,7 @@
       </div>
     </div>
   </div>
-
-  <script>
+<script>
     // 状態管理
     const state = {
       messageCount: 0,
@@ -712,7 +711,9 @@
               author: author.name || '匿名ユーザー',
               text: messageText || '(メッセージなし)',
               time: formatTime(timestamp),
-              badge: badgeText
+              badge: badgeText,
+              avatarUrl: avatarUrl,
+              authorInitial: author.name ? author.name.charAt(0) : '?'
             });
           }
         } 
@@ -737,9 +738,17 @@
       updateScrollButton();
     }
     
+    // PIPウィンドウ用スクロール
+    function scrollPIPToBottom(pipChat) {
+      if (!pipChat) return;
+      pipChat.scrollTop = pipChat.scrollHeight;
+      state.pipUserScrolledUp = false;
+      updatePIPScrollButton(pipChat);
+    }
+    
     // スクロールボタンの表示を更新
     function updateScrollButton() {
-      const scrollThreshold = 100; // スクロール位置が100px以上上の場合はボタンを表示
+      const scrollThreshold = 100;
       const isNearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight <= scrollThreshold;
       
       if (!isNearBottom && chat.children.length > 0) {
@@ -748,6 +757,24 @@
         scrollToBottomBtn.classList.add('visible');
       } else {
         scrollToBottomBtn.classList.remove('visible');
+      }
+    }
+    
+    // PIPウィンドウ用スクロールボタン更新
+    function updatePIPScrollButton(pipChat) {
+      if (!pipChat) return;
+      const scrollThreshold = 50;
+      const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
+      const pipScrollBtn = state.pipWindow.document.getElementById('pip-scroll-to-bottom');
+      
+      if (pipScrollBtn) {
+        if (!isNearBottom && pipChat.children.length > 0) {
+          state.pipAutoScrollEnabled = false;
+          state.pipUserScrolledUp = true;
+          pipScrollBtn.classList.add('visible');
+        } else {
+          pipScrollBtn.classList.remove('visible');
+        }
       }
     }
     
@@ -770,7 +797,6 @@
       metaEl.textContent = text;
       chat.appendChild(metaEl);
       
-      // メタメッセージも自動スクロールの対象
       if (state.autoScrollEnabled) {
         scrollToBottom();
       }
@@ -818,58 +844,6 @@
       });
     }
     
-    // PIPウィンドウ用スクロールボタン機能
-    function setupPIPScrollButton(pipWindow, pipChat) {
-      // スクロールダウンボタンの作成
-      const pipScrollBtn = pipWindow.document.createElement('button');
-      pipScrollBtn.id = 'pip-scroll-to-bottom';
-      pipScrollBtn.className = 'scroll-to-bottom';
-      pipScrollBtn.innerHTML = `
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
-        </svg>
-      `;
-      pipScrollBtn.title = '最新のメッセージへ';
-      pipWindow.document.body.appendChild(pipScrollBtn);
-      
-      // PIPスクロールボタンの表示/非表示を更新
-      function updatePIPScrollButton() {
-        const scrollThreshold = 50;
-        const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
-        
-        if (!isNearBottom && pipChat.children.length > 1) {
-          state.pipAutoScrollEnabled = false;
-          state.pipUserScrolledUp = true;
-          pipScrollBtn.classList.add('visible');
-        } else {
-          pipScrollBtn.classList.remove('visible');
-        }
-      }
-      
-      // 一番下までスクロール
-      function scrollPIPToBottom() {
-        pipChat.scrollTop = pipChat.scrollHeight;
-        state.pipAutoScrollEnabled = true;
-        state.pipUserScrolledUp = false;
-        pipScrollBtn.classList.remove('visible');
-      }
-      
-      // スクロールイベントリスナー
-      pipChat.addEventListener('scroll', () => {
-        updatePIPScrollButton();
-      });
-      
-      // スクロールダウンボタンのイベント
-      pipScrollBtn.addEventListener('click', () => {
-        scrollPIPToBottom();
-      });
-      
-      return {
-        updatePIPScrollButton,
-        scrollPIPToBottom
-      };
-    }
-    
     // PIPウィンドウにメッセージを送信
     function sendToPIP(messageData) {
       if (!state.pipWindow) return;
@@ -877,21 +851,43 @@
       if (state.pipIsNative) {
         // ネイティブPiPの場合
         const pipChat = state.pipWindow.document.getElementById('pip-chat');
+        const pipScrollBtn = state.pipWindow.document.getElementById('pip-scroll-to-bottom');
+        
         if (pipChat) {
           const message = state.pipWindow.document.createElement('div');
           message.className = 'pip-message';
           
+          // 投稿者のアバターHTML
+          const avatarHTML = messageData.avatarUrl ? 
+            `<img src="${messageData.avatarUrl}" alt="${messageData.author}" class="pip-avatar">` :
+            `<div class="pip-avatar-initial">${messageData.authorInitial}</div>`;
+          
+          // 絵文字HTMLをそのまま渡す
+          const textWithEmojis = messageData.text;
+          
           message.innerHTML = `
-            <div class="pip-author">${messageData.author} ${messageData.badge ? `<span class="pip-badge">${messageData.badge}</span>` : ''}</div>
-            <div class="pip-text">${messageData.text}</div>
-            <div class="pip-time">${messageData.time}</div>
+            <div class="pip-message-inner">
+              <div class="pip-avatar-container">
+                ${avatarHTML}
+              </div>
+              <div class="pip-content">
+                <div class="pip-author">${messageData.author} ${messageData.badge ? `<span class="pip-badge">${messageData.badge}</span>` : ''}</div>
+                <div class="pip-text">${textWithEmojis}</div>
+                <div class="pip-time">${messageData.time}</div>
+              </div>
+            </div>
           `;
           
           pipChat.appendChild(message);
           
           // 自動スクロールが有効な場合のみ一番下までスクロール
           if (state.pipAutoScrollEnabled) {
-            pipChat.scrollTop = pipChat.scrollHeight;
+            scrollPIPToBottom(pipChat);
+          }
+          
+          // PIPスクロールボタンを更新
+          if (pipScrollBtn) {
+            updatePIPScrollButton(pipChat);
           }
         }
       } else if (!state.pipWindow.closed) {
@@ -1038,7 +1034,7 @@
                   font-size: 14px;
                 }
                 #pip-chat {
-                  height: calc(100vh - 45px);
+                  height: calc(100vh - 90px);
                   overflow-y: auto;
                   padding: 16px;
                   scrollbar-width: thin;
@@ -1065,6 +1061,37 @@
                   margin-bottom: 12px;
                   border-left: 3px solid #3b82f6;
                   animation: fadeIn 0.3s ease-out;
+                }
+                .pip-message-inner {
+                  display: flex;
+                  gap: 12px;
+                }
+                .pip-avatar-container {
+                  flex-shrink: 0;
+                }
+                .pip-avatar {
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 8px;
+                  object-fit: cover;
+                  border: 1px solid #2a3249;
+                }
+                .pip-avatar-initial {
+                  width: 32px;
+                  height: 32px;
+                  border-radius: 8px;
+                  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  color: white;
+                  font-weight: bold;
+                  font-size: 14px;
+                  border: 1px solid #2a3249;
+                }
+                .pip-content {
+                  flex: 1;
+                  min-width: 0;
                 }
                 @keyframes fadeIn {
                   from { opacity: 0; transform: translateY(5px); }
@@ -1104,13 +1131,12 @@
                   margin-top: 4px;
                   text-align: right;
                 }
-                /* PIPスクロールダウンボタン */
-                .scroll-to-bottom {
-                  position: fixed;
-                  bottom: 20px;
-                  right: 20px;
-                  width: 36px;
-                  height: 36px;
+                #pip-scroll-to-bottom {
+                  position: absolute;
+                  bottom: 40px;
+                  right: 16px;
+                  width: 32px;
+                  height: 32px;
                   border-radius: 50%;
                   background: #3b82f6;
                   color: white;
@@ -1119,22 +1145,22 @@
                   display: flex;
                   align-items: center;
                   justify-content: center;
-                  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
                   transition: all 0.2s;
                   z-index: 100;
                   opacity: 0;
-                  transform: translateY(20px);
+                  transform: translateY(10px);
                   pointer-events: none;
                 }
-                .scroll-to-bottom.visible {
+                #pip-scroll-to-bottom.visible {
                   opacity: 1;
                   transform: translateY(0);
                   pointer-events: all;
                 }
-                .scroll-to-bottom:hover {
-                  background: #8b5cf6;
+                #pip-scroll-to-bottom:hover {
+                  background: #2563eb;
                   transform: translateY(-2px);
-                  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+                  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
                 }
               </style>
               <div class="pip-header">
@@ -1146,102 +1172,98 @@
                   PIPウィンドウ<br>メッセージがここに表示されます
                 </div>
               </div>
+              <button id="pip-scroll-to-bottom" class="scroll-to-bottom" title="最新のメッセージへ">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+                </svg>
+              </button>
               <script>
-                // PIPスクロール機能の状態
-                let pipAutoScrollEnabled = true;
-                let pipUserScrolledUp = false;
-                let pipScrollFunctions = {};
+                // 状態管理
+                const pipState = {
+                  autoScrollEnabled: true,
+                  userScrolledUp: false
+                };
                 
-                // PIPスクロール機能の設定
-                function initPIPScroll() {
-                  const pipChat = document.getElementById('pip-chat');
+                const pipChat = document.getElementById('pip-chat');
+                const pipScrollBtn = document.getElementById('pip-scroll-to-bottom');
+                
+                // PIPスクロール処理
+                function scrollPIPToBottom() {
+                  pipChat.scrollTop = pipChat.scrollHeight;
+                  pipState.userScrolledUp = false;
+                  updatePIPScrollButton();
+                }
+                
+                // PIPスクロールボタン更新
+                function updatePIPScrollButton() {
+                  const scrollThreshold = 50;
+                  const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
                   
-                  // スクロールダウンボタンの作成
-                  const pipScrollBtn = document.createElement('button');
-                  pipScrollBtn.id = 'pip-scroll-to-bottom';
-                  pipScrollBtn.className = 'scroll-to-bottom';
-                  pipScrollBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>';
-                  pipScrollBtn.title = '最新のメッセージへ';
-                  document.body.appendChild(pipScrollBtn);
-                  
-                  // PIPスクロールボタンの表示/非表示を更新
-                  function updatePIPScrollButton() {
-                    const scrollThreshold = 50;
-                    const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
-                    
-                    if (!isNearBottom && pipChat.children.length > 1) {
-                      pipAutoScrollEnabled = false;
-                      pipUserScrolledUp = true;
-                      pipScrollBtn.classList.add('visible');
-                    } else {
-                      pipScrollBtn.classList.remove('visible');
-                    }
-                  }
-                  
-                  // 一番下までスクロール
-                  function scrollPIPToBottom() {
-                    pipChat.scrollTop = pipChat.scrollHeight;
-                    pipAutoScrollEnabled = true;
-                    pipUserScrolledUp = false;
+                  if (!isNearBottom && pipChat.children.length > 1) {
+                    pipState.autoScrollEnabled = false;
+                    pipState.userScrolledUp = true;
+                    pipScrollBtn.classList.add('visible');
+                  } else {
                     pipScrollBtn.classList.remove('visible');
                   }
-                  
-                  // スクロールイベントリスナー
-                  pipChat.addEventListener('scroll', () => {
-                    updatePIPScrollButton();
-                  });
-                  
-                  // スクロールダウンボタンのイベント
-                  pipScrollBtn.addEventListener('click', () => {
-                    scrollPIPToBottom();
-                  });
-                  
-                  // 初期状態で一番下にスクロール
-                  setTimeout(() => {
-                    scrollPIPToBottom();
-                  }, 100);
-                  
-                  // 関数を外部から呼び出せるように保存
-                  pipScrollFunctions = {
-                    updatePIPScrollButton,
-                    scrollPIPToBottom
-                  };
-                  
-                  return pipScrollFunctions;
                 }
+                
+                // スクロールイベントリスナー
+                pipChat.addEventListener('scroll', () => {
+                  updatePIPScrollButton();
+                });
+                
+                // スクロールダウンボタンのイベント
+                pipScrollBtn.addEventListener('click', () => {
+                  scrollPIPToBottom();
+                  pipState.autoScrollEnabled = true;
+                  pipScrollBtn.classList.remove('visible');
+                });
+                
+                // 初期状態で一番下にスクロール
+                setTimeout(() => {
+                  scrollPIPToBottom();
+                }, 100);
                 
                 // メッセージ受信用のイベントリスナー
                 window.addEventListener('message', function(event) {
-                  const pipChat = document.getElementById('pip-chat');
-                  
                   if (event.data.type === 'chatMessage') {
                     const message = document.createElement('div');
                     message.className = 'pip-message';
                     
-                    // 絵文字を含むテキストをそのまま表示
+                    // 投稿者のアバターHTML
+                    const avatarHTML = event.data.avatarUrl ? 
+                      \`<img src="\${event.data.avatarUrl}" alt="\${event.data.author}" class="pip-avatar">\` :
+                      \`<div class="pip-avatar-initial">\${event.data.authorInitial}</div>\`;
+                    
+                    // 絵文字を含むテキストを処理
                     const textWithEmojis = event.data.text.replace(
                       /<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/g,
                       (match, src, alt) => \`<img src="\${src}" alt="\${alt}" class="pip-emoji">\`
                     );
                     
                     message.innerHTML = \`
-                      <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
-                      <div class="pip-text">\${textWithEmojis}</div>
-                      <div class="pip-time">\${event.data.time}</div>
+                      <div class="pip-message-inner">
+                        <div class="pip-avatar-container">
+                          \${avatarHTML}
+                        </div>
+                        <div class="pip-content">
+                          <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
+                          <div class="pip-text">\${textWithEmojis}</div>
+                          <div class="pip-time">\${event.data.time}</div>
+                        </div>
+                      </div>
                     \`;
                     
                     pipChat.appendChild(message);
                     
                     // 自動スクロールが有効な場合のみ一番下までスクロール
-                    if (pipAutoScrollEnabled && pipScrollFunctions.scrollPIPToBottom) {
-                      pipScrollFunctions.scrollPIPToBottom();
+                    if (pipState.autoScrollEnabled) {
+                      scrollPIPToBottom();
+                    } else {
+                      updatePIPScrollButton();
                     }
                   }
-                });
-                
-                // 初期化
-                document.addEventListener('DOMContentLoaded', () => {
-                  initPIPScroll();
                 });
               <\/script>
             `;
@@ -1285,7 +1307,7 @@
           return;
         }
         
-        // PIPウィンドウのコンテンツを設定
+        // PIPウィンドウのコンテンツを設定（通常ウィンドウ用）
         pipWindow.document.write(`
           <!DOCTYPE html>
           <html>
@@ -1317,7 +1339,7 @@
                 font-size: 14px;
               }
               #pip-chat {
-                height: calc(100vh - 45px);
+                height: calc(100vh - 90px);
                 overflow-y: auto;
                 padding: 16px;
                 scrollbar-width: thin;
@@ -1344,6 +1366,37 @@
                 margin-bottom: 12px;
                 border-left: 3px solid #3b82f6;
                 animation: fadeIn 0.3s ease-out;
+              }
+              .pip-message-inner {
+                display: flex;
+                gap: 12px;
+              }
+              .pip-avatar-container {
+                flex-shrink: 0;
+              }
+              .pip-avatar {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                object-fit: cover;
+                border: 1px solid #2a3249;
+              }
+              .pip-avatar-initial {
+                width: 32px;
+                height: 32px;
+                border-radius: 8px;
+                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+                font-size: 14px;
+                border: 1px solid #2a3249;
+              }
+              .pip-content {
+                flex: 1;
+                min-width: 0;
               }
               @keyframes fadeIn {
                 from { opacity: 0; transform: translateY(5px); }
@@ -1383,13 +1436,12 @@
                 margin-top: 4px;
                 text-align: right;
               }
-              /* PIPスクロールダウンボタン */
-              .scroll-to-bottom {
-                position: fixed;
-                bottom: 20px;
-                right: 20px;
-                width: 36px;
-                height: 36px;
+              #pip-scroll-to-bottom {
+                position: absolute;
+                bottom: 40px;
+                right: 16px;
+                width: 32px;
+                height: 32px;
                 border-radius: 50%;
                 background: #3b82f6;
                 color: white;
@@ -1398,22 +1450,22 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
                 transition: all 0.2s;
                 z-index: 100;
                 opacity: 0;
-                transform: translateY(20px);
+                transform: translateY(10px);
                 pointer-events: none;
               }
-              .scroll-to-bottom.visible {
+              #pip-scroll-to-bottom.visible {
                 opacity: 1;
                 transform: translateY(0);
                 pointer-events: all;
               }
-              .scroll-to-bottom:hover {
-                background: #8b5cf6;
+              #pip-scroll-to-bottom:hover {
+                background: #2563eb;
                 transform: translateY(-2px);
-                box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
               }
             </style>
           </head>
@@ -1427,102 +1479,98 @@
                 PIPウィンドウ<br>メッセージがここに表示されます
               </div>
             </div>
+            <button id="pip-scroll-to-bottom" class="scroll-to-bottom" title="最新のメッセージへ">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+              </svg>
+            </button>
             <script>
-              // PIPスクロール機能の状態
-              let pipAutoScrollEnabled = true;
-              let pipUserScrolledUp = false;
-              let pipScrollFunctions = {};
+              // 状態管理
+              const pipState = {
+                autoScrollEnabled: true,
+                userScrolledUp: false
+              };
               
-              // PIPスクロール機能の設定
-              function initPIPScroll() {
-                const pipChat = document.getElementById('pip-chat');
+              const pipChat = document.getElementById('pip-chat');
+              const pipScrollBtn = document.getElementById('pip-scroll-to-bottom');
+              
+              // PIPスクロール処理
+              function scrollPIPToBottom() {
+                pipChat.scrollTop = pipChat.scrollHeight;
+                pipState.userScrolledUp = false;
+                updatePIPScrollButton();
+              }
+              
+              // PIPスクロールボタン更新
+              function updatePIPScrollButton() {
+                const scrollThreshold = 50;
+                const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
                 
-                // スクロールダウンボタンの作成
-                const pipScrollBtn = document.createElement('button');
-                pipScrollBtn.id = 'pip-scroll-to-bottom';
-                pipScrollBtn.className = 'scroll-to-bottom';
-                pipScrollBtn.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/></svg>';
-                pipScrollBtn.title = '最新のメッセージへ';
-                document.body.appendChild(pipScrollBtn);
-                
-                // PIPスクロールボタンの表示/非表示を更新
-                function updatePIPScrollButton() {
-                  const scrollThreshold = 50;
-                  const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
-                  
-                  if (!isNearBottom && pipChat.children.length > 1) {
-                    pipAutoScrollEnabled = false;
-                    pipUserScrolledUp = true;
-                    pipScrollBtn.classList.add('visible');
-                  } else {
-                    pipScrollBtn.classList.remove('visible');
-                  }
-                }
-                
-                // 一番下までスクロール
-                function scrollPIPToBottom() {
-                  pipChat.scrollTop = pipChat.scrollHeight;
-                  pipAutoScrollEnabled = true;
-                  pipUserScrolledUp = false;
+                if (!isNearBottom && pipChat.children.length > 1) {
+                  pipState.autoScrollEnabled = false;
+                  pipState.userScrolledUp = true;
+                  pipScrollBtn.classList.add('visible');
+                } else {
                   pipScrollBtn.classList.remove('visible');
                 }
-                
-                // スクロールイベントリスナー
-                pipChat.addEventListener('scroll', () => {
-                  updatePIPScrollButton();
-                });
-                
-                // スクロールダウンボタンのイベント
-                pipScrollBtn.addEventListener('click', () => {
-                  scrollPIPToBottom();
-                });
-                
-                // 初期状態で一番下にスクロール
-                setTimeout(() => {
-                  scrollPIPToBottom();
-                }, 100);
-                
-                // 関数を外部から呼び出せるように保存
-                pipScrollFunctions = {
-                  updatePIPScrollButton,
-                  scrollPIPToBottom
-                };
-                
-                return pipScrollFunctions;
               }
+              
+              // スクロールイベントリスナー
+              pipChat.addEventListener('scroll', () => {
+                updatePIPScrollButton();
+              });
+              
+              // スクロールダウンボタンのイベント
+              pipScrollBtn.addEventListener('click', () => {
+                scrollPIPToBottom();
+                pipState.autoScrollEnabled = true;
+                pipScrollBtn.classList.remove('visible');
+              });
+              
+              // 初期状態で一番下にスクロール
+              setTimeout(() => {
+                scrollPIPToBottom();
+              }, 100);
               
               // メッセージ受信用のイベントリスナー
               window.addEventListener('message', function(event) {
-                const pipChat = document.getElementById('pip-chat');
-                
                 if (event.data.type === 'chatMessage') {
                   const message = document.createElement('div');
                   message.className = 'pip-message';
                   
-                  // 絵文字を含むテキストをそのまま表示
+                  // 投稿者のアバターHTML
+                  const avatarHTML = event.data.avatarUrl ? 
+                    \`<img src="\${event.data.avatarUrl}" alt="\${event.data.author}" class="pip-avatar">\` :
+                    \`<div class="pip-avatar-initial">\${event.data.authorInitial}</div>\`;
+                  
+                  // 絵文字を含むテキストを処理
                   const textWithEmojis = event.data.text.replace(
                     /<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/g,
                     (match, src, alt) => \`<img src="\${src}" alt="\${alt}" class="pip-emoji">\`
                   );
                   
                   message.innerHTML = \`
-                    <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
-                    <div class="pip-text">\${textWithEmojis}</div>
-                    <div class="pip-time">\${event.data.time}</div>
+                    <div class="pip-message-inner">
+                      <div class="pip-avatar-container">
+                        \${avatarHTML}
+                      </div>
+                      <div class="pip-content">
+                        <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
+                        <div class="pip-text">\${textWithEmojis}</div>
+                        <div class="pip-time">\${event.data.time}</div>
+                      </div>
+                    </div>
                   \`;
                   
                   pipChat.appendChild(message);
                   
                   // 自動スクロールが有効な場合のみ一番下までスクロール
-                  if (pipAutoScrollEnabled && pipScrollFunctions.scrollPIPToBottom) {
-                    pipScrollFunctions.scrollPIPToBottom();
+                  if (pipState.autoScrollEnabled) {
+                    scrollPIPToBottom();
+                  } else {
+                    updatePIPScrollButton();
                   }
                 }
-              });
-              
-              // 初期化
-              document.addEventListener('DOMContentLoaded', () => {
-                initPIPScroll();
               });
             <\/script>
           </body>
