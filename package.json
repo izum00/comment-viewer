@@ -1,10 +1,13 @@
 {
-  "name": "yt-chat-proxy",
-  "version": "1.0.0",
-  "main": "server.js",
-  "scripts": { "start": "node server.js" },
-  "dependencies": {
-    "ws": "^8.0.0",
-    "@letruxux/youtube-chat": "^latest"
-  }
+"name": "youtube-chat-ws-server",
+"version": "1.0.0",
+"type": "module",
+"dependencies": {
+"express": "^4.18.2",
+"ws": "^8.13.0",
+"youtube-chat": "^0.16.0"
+},
+"scripts": {
+"start": "node server.js"
+}
 }
