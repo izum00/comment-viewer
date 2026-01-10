@@ -218,6 +218,7 @@
       height: 500px;
       display: flex;
       flex-direction: column;
+      position: relative;
     }
     
     .chat-header {
@@ -417,6 +418,41 @@
       justify-content: space-between;
     }
     
+    /* スクロールダウンボタン */
+    .scroll-to-bottom {
+      position: absolute;
+      bottom: 80px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s;
+      z-index: 100;
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+    }
+    
+    .scroll-to-bottom.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+    
+    .scroll-to-bottom:hover {
+      background: var(--accent-secondary);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    }
+    
     @media (max-width: 768px) {
       .container {
         padding: 10px;
@@ -438,6 +474,11 @@
       
       .btn {
         width: 100%;
+      }
+      
+      .scroll-to-bottom {
+        bottom: 70px;
+        right: 15px;
       }
     }
   </style>
@@ -506,6 +547,13 @@
         </div>
       </div>
       
+      <!-- スクロールダウンボタン -->
+      <button id="scroll-to-bottom" class="scroll-to-bottom" title="最新のメッセージへ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+      </button>
+      
       <div class="status-bar">
         <div id="status">未接続</div>
         <div id="timestamp">--:--:--</div>
@@ -520,7 +568,9 @@
       isConnected: false,
       currentVideoId: null,
       pipWindow: null,
-      pipIsNative: false
+      pipIsNative: false,
+      autoScrollEnabled: true,
+      userScrolledUp: false
     };
     
     // DOM要素の取得
@@ -533,6 +583,7 @@
     const statusEl = document.getElementById('status');
     const timestampEl = document.getElementById('timestamp');
     const chatWindow = document.getElementById('chat-window');
+    const scrollToBottomBtn = document.getElementById('scroll-to-bottom');
     
     // WebSocket接続
     const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
@@ -649,8 +700,10 @@
             // チャットに追加
             chat.appendChild(messageEl);
             
-            // 自動スクロール
-            chat.scrollTop = chat.scrollHeight;
+            // 自動スクロールが有効な場合のみ一番下までスクロール
+            if (state.autoScrollEnabled) {
+              scrollToBottom();
+            }
             
             // PIPウィンドウに転送
             sendToPIP({
@@ -675,13 +728,50 @@
       }
     }
     
+    // 一番下までスクロール
+    function scrollToBottom() {
+      chat.scrollTop = chat.scrollHeight;
+      state.userScrolledUp = false;
+      updateScrollButton();
+    }
+    
+    // スクロールボタンの表示を更新
+    function updateScrollButton() {
+      const scrollThreshold = 100; // スクロール位置が100px以上上の場合はボタンを表示
+      const isNearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight <= scrollThreshold;
+      
+      if (!isNearBottom && chat.children.length > 0) {
+        state.autoScrollEnabled = false;
+        state.userScrolledUp = true;
+        scrollToBottomBtn.classList.add('visible');
+      } else {
+        scrollToBottomBtn.classList.remove('visible');
+      }
+    }
+    
+    // スクロールイベントリスナー
+    chat.addEventListener('scroll', () => {
+      updateScrollButton();
+    });
+    
+    // スクロールダウンボタンのイベント
+    scrollToBottomBtn.addEventListener('click', () => {
+      scrollToBottom();
+      state.autoScrollEnabled = true;
+      scrollToBottomBtn.classList.remove('visible');
+    });
+    
     // メタメッセージを追加
     function addMetaMessage(text) {
       const metaEl = document.createElement('div');
       metaEl.className = 'meta-message';
       metaEl.textContent = text;
       chat.appendChild(metaEl);
-      chat.scrollTop = chat.scrollHeight;
+      
+      // メタメッセージも自動スクロールの対象
+      if (state.autoScrollEnabled) {
+        scrollToBottom();
+      }
     }
     
     // エラーメッセージを追加
@@ -690,7 +780,10 @@
       errorEl.className = 'meta-message error-message';
       errorEl.textContent = text;
       chat.appendChild(errorEl);
-      chat.scrollTop = chat.scrollHeight;
+      
+      if (state.autoScrollEnabled) {
+        scrollToBottom();
+      }
     }
     
     // 成功メッセージを追加
@@ -699,7 +792,10 @@
       successEl.className = 'meta-message success-message';
       successEl.textContent = text;
       chat.appendChild(successEl);
-      chat.scrollTop = chat.scrollHeight;
+      
+      if (state.autoScrollEnabled) {
+        scrollToBottom();
+      }
     }
     
     // 時間フォーマット
@@ -730,9 +826,13 @@
         if (pipChat) {
           const message = state.pipWindow.document.createElement('div');
           message.className = 'pip-message';
+          
+          // 絵文字HTMLをそのまま渡す
+          const textWithEmojis = messageData.text;
+          
           message.innerHTML = `
             <div class="pip-author">${messageData.author} ${messageData.badge ? `<span class="pip-badge">${messageData.badge}</span>` : ''}</div>
-            <div class="pip-text">${messageData.text}</div>
+            <div class="pip-text">${textWithEmojis}</div>
             <div class="pip-time">${messageData.time}</div>
           `;
           
@@ -936,6 +1036,12 @@
                   line-height: 1.4;
                   word-break: break-word;
                 }
+                .pip-emoji {
+                  width: 20px;
+                  height: 20px;
+                  vertical-align: middle;
+                  margin: 0 1px;
+                }
                 .pip-time {
                   font-size: 11px;
                   color: #64748b;
@@ -952,6 +1058,32 @@
                   PIPウィンドウ<br>メッセージがここに表示されます
                 </div>
               </div>
+              <script>
+                // メッセージ受信用のイベントリスナー
+                window.addEventListener('message', function(event) {
+                  const pipChat = document.getElementById('pip-chat');
+                  
+                  if (event.data.type === 'chatMessage') {
+                    const message = document.createElement('div');
+                    message.className = 'pip-message';
+                    
+                    // 絵文字を含むテキストをそのまま表示
+                    const textWithEmojis = event.data.text.replace(
+                      /<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/g,
+                      (match, src, alt) => \`<img src="\${src}" alt="\${alt}" class="pip-emoji">\`
+                    );
+                    
+                    message.innerHTML = \`
+                      <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
+                      <div class="pip-text">\${textWithEmojis}</div>
+                      <div class="pip-time">\${event.data.time}</div>
+                    \`;
+                    
+                    pipChat.appendChild(message);
+                    pipChat.scrollTop = pipChat.scrollHeight;
+                  }
+                });
+              <\/script>
             `;
             
             state.pipWindow = pipWindow;
@@ -1067,6 +1199,12 @@
                 line-height: 1.4;
                 word-break: break-word;
               }
+              .pip-emoji {
+                width: 20px;
+                height: 20px;
+                vertical-align: middle;
+                margin: 0 1px;
+              }
               .pip-time {
                 font-size: 11px;
                 color: #64748b;
@@ -1093,9 +1231,16 @@
                 if (event.data.type === 'chatMessage') {
                   const message = document.createElement('div');
                   message.className = 'pip-message';
+                  
+                  // 絵文字を含むテキストをそのまま表示
+                  const textWithEmojis = event.data.text.replace(
+                    /<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/g,
+                    (match, src, alt) => \`<img src="\${src}" alt="\${alt}" class="pip-emoji">\`
+                  );
+                  
                   message.innerHTML = \`
-                    <div class="pip-author">\${event.data.author}</div>
-                    <div class="pip-text">\${event.data.text}</div>
+                    <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
+                    <div class="pip-text">\${textWithEmojis}</div>
                     <div class="pip-time">\${event.data.time}</div>
                   \`;
                   
@@ -1139,6 +1284,11 @@
     // 初期化
     updateStats();
     addMetaMessage('YouTubeライブチャットビューアーが起動しました');
+    
+    // 初期状態で一番下にスクロール
+    setTimeout(() => {
+      scrollToBottom();
+    }, 100);
     
     // 入力例を表示
     setTimeout(() => {
