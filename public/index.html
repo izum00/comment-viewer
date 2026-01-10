@@ -1,49 +1,80 @@
-<!DOCTYPE html>
-<html lang="ja">
+<!doctype html>
+<html>
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <title>YouTube Live Chat Viewer</title>
   <style>
-    body { font-family: sans-serif; }
-    #chat { border: 1px solid #ccc; height: 400px; overflow-y: auto; padding: 8px; }
+    body{font-family:system-ui, sans-serif; padding:20px}
+    #chat{height:400px; overflow:auto; border:1px solid #ddd; padding:8px}
+    #controls{margin-bottom:8px}
+    .msg{margin:4px 0; padding:6px; border-radius:6px; background:#f6f6f6}
+    .meta{color:#666; font-size:0.9em}
   </style>
 </head>
 <body>
-  <h1>YouTube Live コメントビューア</h1>
+  <h1>YouTube Live Chat Viewer</h1>
 
-  <input id="url" type="text" placeholder="YouTube Live URL" size="60" />
-  <button id="connect">接続</button>
+  <div id="controls">
+    <input id="url" placeholder="https://www.youtube.com/watch?v=VIDEOID" size="60" />
+    <button id="connect">接続</button>
+    <button id="disconnect">切断</button>
+  </div>
 
   <div id="chat"></div>
 
   <script>
-    const chatDiv = document.getElementById("chat");
-    const ws = new WebSocket(
-      location.protocol === "https:"
-        ? `wss://${location.host}`
-        : `ws://${location.host}`
-    );
+    const chat = document.getElementById('chat');
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
 
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.type === "chat") {
-        const div = document.createElement("div");
-        div.textContent = `${data.author}: ${data.message}`;
-        chatDiv.appendChild(div);
-        chatDiv.scrollTop = chatDiv.scrollHeight;
+    function log(text, cls='msg') {
+      const d = document.createElement('div');
+      d.className = cls;
+      if (typeof text === 'string') d.textContent = text;
+      else d.textContent = JSON.stringify(text);
+      chat.appendChild(d);
+      chat.scrollTop = chat.scrollHeight;
+    }
+
+    ws.onopen = () => log('WebSocket connected', 'meta');
+    ws.onclose = () => log('WebSocket disconnected', 'meta');
+    ws.onerror = (e) => log('WebSocket error: ' + e.message, 'meta');
+
+    ws.onmessage = (ev) => {
+      try {
+        const d = JSON.parse(ev.data);
+        if (d.type === 'chat') {
+          // payload は文字列化されたチャットオブジェクト（safeStringify）
+          // 見やすく整形して表示
+          const txt = d.payload;
+          log(txt);
+        } else if (d.type === 'meta' || d.type === 'meta-update') {
+          log(`[meta] ${d.message || ''} ${d.initial ? d.initial : ''}`, 'meta');
+        } else if (d.type === 'error') {
+          log(`[error] ${d.message}`, 'meta');
+        } else {
+          log(JSON.stringify(d), 'meta');
+        }
+      } catch (e) {
+        log(ev.data);
       }
     };
 
-    document.getElementById("connect").onclick = () => {
-      const url = document.getElementById("url").value;
-      const liveId = new URL(url).searchParams.get("v");
+    document.getElementById('connect').onclick = () => {
+      const url = document.getElementById('url').value.trim();
+      if (!url) return alert('URL を入れてください');
+      // URL から videoId を取り出す（簡易）
+      let videoId = null;
+      try {
+        const u = new URL(url);
+        videoId = u.searchParams.get('v') || (u.pathname.split('/').pop());
+      } catch {
+        videoId = url;
+      }
+      ws.send(JSON.stringify({ type: 'connect', videoId }));
+    };
 
-      ws.send(
-        JSON.stringify({
-          type: "connect",
-          liveId,
-        })
-      );
+    document.getElementById('disconnect').onclick = () => {
+      ws.send(JSON.stringify({ type: 'disconnect' }));
     };
   </script>
 </body>
