@@ -2,80 +2,963 @@
 <html>
 <head>
   <meta charset="utf-8" />
-  <title>YouTube Live Chat Viewer</title>
+  <title>YouTube Live Chat Viewer - Tech Edition</title>
   <style>
-    body{font-family:system-ui, sans-serif; padding:20px}
-    #chat{height:400px; overflow:auto; border:1px solid #ddd; padding:8px}
-    #controls{margin-bottom:8px}
-    .msg{margin:4px 0; padding:6px; border-radius:6px; background:#f6f6f6}
-    .meta{color:#666; font-size:0.9em}
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #151b2a;
+      --bg-tertiary: #1e2538;
+      --border-color: #2a3249;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-primary: #3b82f6;
+      --accent-secondary: #8b5cf6;
+      --accent-glow: rgba(59, 130, 246, 0.3);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      padding: 20px;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 20%),
+        radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.05) 0%, transparent 20%);
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 20px;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 18px;
+      color: white;
+    }
+    
+    .logo-text h1 {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: -0.5px;
+    }
+    
+    .logo-text p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    
+    .controls-panel {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .panel-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .panel-title::before {
+      content: '';
+      width: 4px;
+      height: 18px;
+      background: var(--accent-primary);
+      border-radius: 2px;
+    }
+    
+    .pip-button {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    
+    .pip-button:hover {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+    
+    .url-input-container {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    #url {
+      flex: 1;
+      padding: 14px 16px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+    
+    #url:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    
+    #url::placeholder {
+      color: var(--text-muted);
+    }
+    
+    .control-buttons {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .btn-connect {
+      background: var(--accent-primary);
+      color: white;
+      flex: 1;
+    }
+    
+    .btn-connect:hover {
+      background: #2563eb;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    
+    .btn-disconnect {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .btn-disconnect:hover {
+      background: var(--border-color);
+    }
+    
+    .chat-container {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      height: 500px;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .chat-header {
+      padding: 16px 20px;
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .chat-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .chat-stats {
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .online-indicator {
+      width: 8px;
+      height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    
+    .message {
+      display: flex;
+      gap: 12px;
+      padding: 16px;
+      background: var(--bg-tertiary);
+      border-radius: 12px;
+      border-left: 4px solid var(--border-color);
+      transition: all 0.2s;
+      animation: fadeIn 0.3s ease-out;
+    }
+    
+    .message:hover {
+      border-left-color: var(--accent-primary);
+      background: rgba(30, 37, 56, 0.8);
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .author-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      overflow: hidden;
+      flex-shrink: 0;
+      border: 2px solid var(--border-color);
+    }
+    
+    .author-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .message-content {
+      flex: 1;
+    }
+    
+    .message-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .author-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 15px;
+    }
+    
+    .author-badge {
+      font-size: 12px;
+      padding: 2px 8px;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      color: white;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+    
+    .message-text {
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.5;
+      word-break: break-word;
+    }
+    
+    .custom-emoji {
+      width: 24px;
+      height: 24px;
+      vertical-align: middle;
+      margin: 0 2px;
+    }
+    
+    .message-time {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+    
+    .meta-message {
+      padding: 12px 20px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      border-left: 4px solid var(--text-muted);
+      text-align: center;
+    }
+    
+    .error-message {
+      border-left-color: var(--error);
+      color: var(--error);
+    }
+    
+    .success-message {
+      border-left-color: var(--success);
+      color: var(--success);
+    }
+    
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 40px;
+    }
+    
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    .status-bar {
+      padding: 12px 20px;
+      background: var(--bg-tertiary);
+      border-top: 1px solid var(--border-color);
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    @media (max-width: 768px) {
+      .container {
+        padding: 10px;
+      }
+      
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      
+      .url-input-container {
+        flex-direction: column;
+      }
+      
+      .control-buttons {
+        flex-direction: column;
+      }
+      
+      .btn {
+        width: 100%;
+      }
+    }
   </style>
 </head>
 <body>
-  <h1>YouTube Live Chat Viewer</h1>
-
-  <div id="controls">
-    <input id="url" placeholder="https://www.youtube.com/watch?v=VIDEOID" size="60" />
-    <button id="connect">接続</button>
-    <button id="disconnect">切断</button>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">YT</div>
+        <div class="logo-text">
+          <h1>YouTube Live Chat</h1>
+          <p>Tech Edition • リアルタイムチャットビューアー</p>
+        </div>
+      </div>
+    </header>
+    
+    <div class="controls-panel">
+      <div class="panel-header">
+        <div class="panel-title">接続コントロール</div>
+        <button id="pip-toggle" class="pip-button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 11h-8v6h8v-6zm4-8v18H1V3h22zm-2 16H3V5h18v14z"/>
+          </svg>
+          PIPウィンドウ
+        </button>
+      </div>
+      
+      <div class="url-input-container">
+        <input 
+          type="text" 
+          id="url" 
+          placeholder="YouTubeライブURLを入力 (例: https://www.youtube.com/watch?v=VIDEOID または VIDEOIDのみ)"
+        />
+      </div>
+      
+      <div class="control-buttons">
+        <button id="connect" class="btn btn-connect">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+          </svg>
+          接続
+        </button>
+        <button id="disconnect" class="btn btn-disconnect">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+          切断
+        </button>
+      </div>
+    </div>
+    
+    <div class="chat-container" id="chat-window">
+      <div class="chat-header">
+        <div class="chat-title">ライブチャット</div>
+        <div class="chat-stats">
+          <div class="online-indicator"></div>
+          <span id="message-count">0 メッセージ</span>
+        </div>
+      </div>
+      
+      <div id="chat">
+        <div class="empty-state">
+          <div class="empty-state-icon">💬</div>
+          <h3>チャットが表示されます</h3>
+          <p>YouTubeライブURLを入力して「接続」をクリックしてください</p>
+        </div>
+      </div>
+      
+      <div class="status-bar">
+        <div id="status">未接続</div>
+        <div id="timestamp">--:--:--</div>
+      </div>
+    </div>
   </div>
 
-  <div id="chat"></div>
-
   <script>
+    // 状態管理
+    const state = {
+      messageCount: 0,
+      isConnected: false,
+      currentVideoId: null,
+      pipWindow: null
+    };
+    
+    // DOM要素の取得
     const chat = document.getElementById('chat');
+    const urlInput = document.getElementById('url');
+    const connectBtn = document.getElementById('connect');
+    const disconnectBtn = document.getElementById('disconnect');
+    const pipToggleBtn = document.getElementById('pip-toggle');
+    const messageCountEl = document.getElementById('message-count');
+    const statusEl = document.getElementById('status');
+    const timestampEl = document.getElementById('timestamp');
+    const chatWindow = document.getElementById('chat-window');
+    
+    // WebSocket接続
     const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
-
-    function log(text, cls='msg') {
-      const d = document.createElement('div');
-      d.className = cls;
-      if (typeof text === 'string') d.textContent = text;
-      else d.textContent = JSON.stringify(text);
-      chat.appendChild(d);
+    
+    // メッセージ表示関数
+    function displayMessage(data) {
+      try {
+        // ペイロードが文字列の場合はパース
+        const payload = typeof data.payload === 'string' ? 
+          JSON.parse(data.payload) : data.payload;
+        
+        // チャットメッセージの場合
+        if (data.type === 'chat' && payload.type === 'AddChatItemAction') {
+          const item = payload.item;
+          
+          // テキストメッセージのみ処理
+          if (item.type === 'LiveChatTextMessage') {
+            state.messageCount++;
+            updateStats();
+            
+            // メッセージ要素を作成
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message';
+            
+            // 投稿者情報
+            const author = item.author;
+            const timestamp = new Date(parseInt(item.timestamp_usec) / 1000);
+            
+            // メッセージテキストの構築
+            let messageText = '';
+            if (item.message && item.message.runs) {
+              item.message.runs.forEach(run => {
+                if (run.text) {
+                  messageText += run.text;
+                } else if (run.emoji) {
+                  // カスタム絵文字
+                  const emojiUrl = run.emoji.image && run.emoji.image[0] ? 
+                    run.emoji.image[0].url : 
+                    (run.emoji.image && run.emoji.image[1] ? run.emoji.image[1].url : '');
+                  
+                  if (emojiUrl) {
+                    messageText += `<img src="${emojiUrl}" alt="${run.emoji.shortcuts ? run.emoji.shortcuts[0] : 'emoji'}" class="custom-emoji">`;
+                  } else if (run.emoji.emoji_id) {
+                    messageText += run.emoji.emoji_id;
+                  }
+                }
+              });
+            }
+            
+            // バッジの取得
+            let badgeText = '';
+            if (author.badges && author.badges.length > 0) {
+              const badge = author.badges[0];
+              if (badge.tooltip) {
+                badgeText = badge.tooltip;
+              } else if (badge.type === 'LiveChatAuthorBadge') {
+                badgeText = 'メンバー';
+              }
+            }
+            
+            // アバターURL（小さいサイズを優先）
+            const avatarUrl = author.thumbnails && author.thumbnails[1] ? 
+              author.thumbnails[1].url : 
+              (author.thumbnails && author.thumbnails[0] ? author.thumbnails[0].url : '');
+            
+            // メッセージHTMLの構築
+            messageEl.innerHTML = `
+              <div class="author-avatar">
+                ${avatarUrl ? `<img src="${avatarUrl}" alt="${author.name}">` : 
+                  `<div style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">${author.name.charAt(1)}</div>`}
+              </div>
+              <div class="message-content">
+                <div class="message-header">
+                  <span class="author-name">${author.name || '匿名ユーザー'}</span>
+                  ${badgeText ? `<span class="author-badge">${badgeText}</span>` : ''}
+                </div>
+                <div class="message-text">${messageText || '(メッセージなし)'}</div>
+                <div class="message-time">${formatTime(timestamp)}</div>
+              </div>
+            `;
+            
+            // 既存の空状態を削除
+            const emptyState = chat.querySelector('.empty-state');
+            if (emptyState) {
+              emptyState.remove();
+            }
+            
+            // チャットに追加
+            chat.appendChild(messageEl);
+            
+            // 自動スクロール
+            chat.scrollTop = chat.scrollHeight;
+          }
+        } 
+        // メタ情報の場合
+        else if (data.type === 'meta' || data.type === 'meta-update') {
+          addMetaMessage(data.message || 'メタ情報を受信しました');
+        }
+        // エラーの場合
+        else if (data.type === 'error') {
+          addErrorMessage(data.message || 'エラーが発生しました');
+        }
+      } catch (error) {
+        console.error('メッセージ表示エラー:', error);
+        addErrorMessage(`データ解析エラー: ${error.message}`);
+      }
+    }
+    
+    // メタメッセージを追加
+    function addMetaMessage(text) {
+      const metaEl = document.createElement('div');
+      metaEl.className = 'meta-message';
+      metaEl.textContent = text;
+      chat.appendChild(metaEl);
       chat.scrollTop = chat.scrollHeight;
     }
-
-    ws.onopen = () => log('WebSocket connected', 'meta');
-    ws.onclose = () => log('WebSocket disconnected', 'meta');
-    ws.onerror = (e) => log('WebSocket error: ' + e.message, 'meta');
-
+    
+    // エラーメッセージを追加
+    function addErrorMessage(text) {
+      const errorEl = document.createElement('div');
+      errorEl.className = 'meta-message error-message';
+      errorEl.textContent = text;
+      chat.appendChild(errorEl);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    
+    // 成功メッセージを追加
+    function addSuccessMessage(text) {
+      const successEl = document.createElement('div');
+      successEl.className = 'meta-message success-message';
+      successEl.textContent = text;
+      chat.appendChild(successEl);
+      chat.scrollTop = chat.scrollHeight;
+    }
+    
+    // 時間フォーマット
+    function formatTime(date) {
+      return date.toLocaleTimeString('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
+    }
+    
+    // 統計情報の更新
+    function updateStats() {
+      messageCountEl.textContent = `${state.messageCount} メッセージ`;
+      timestampEl.textContent = new Date().toLocaleTimeString('ja-JP', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+    
+    // WebSocketイベントハンドラ
+    ws.onopen = () => {
+      state.isConnected = true;
+      statusEl.textContent = '接続済み';
+      statusEl.style.color = 'var(--success)';
+      addMetaMessage('WebSocketサーバーに接続しました');
+    };
+    
+    ws.onclose = () => {
+      state.isConnected = false;
+      statusEl.textContent = '未接続';
+      statusEl.style.color = 'var(--text-secondary)';
+      addMetaMessage('WebSocketサーバーから切断されました');
+    };
+    
+    ws.onerror = (e) => {
+      addErrorMessage(`WebSocketエラー: ${e.message}`);
+    };
+    
     ws.onmessage = (ev) => {
       try {
-        const d = JSON.parse(ev.data);
-        if (d.type === 'chat') {
-          // payload は文字列化されたチャットオブジェクト（safeStringify）
-          // 見やすく整形して表示
-          const txt = d.payload;
-          log(txt);
-        } else if (d.type === 'meta' || d.type === 'meta-update') {
-          log(`[meta] ${d.message || ''} ${d.initial ? d.initial : ''}`, 'meta');
-        } else if (d.type === 'error') {
-          log(`[error] ${d.message}`, 'meta');
-        } else {
-          log(JSON.stringify(d), 'meta');
-        }
+        const data = JSON.parse(ev.data);
+        displayMessage(data);
       } catch (e) {
-        log(ev.data);
+        // 生データが来た場合の処理
+        if (ev.data.includes('"type":"chat"')) {
+          try {
+            const data = JSON.parse(ev.data);
+            displayMessage(data);
+          } catch (parseError) {
+            addErrorMessage(`データ解析エラー: ${parseError.message}`);
+          }
+        } else {
+          addMetaMessage(ev.data);
+        }
       }
     };
-
-    document.getElementById('connect').onclick = () => {
-      const url = document.getElementById('url').value.trim();
-      if (!url) return alert('URL を入れてください');
-      // URL から videoId を取り出す（簡易）
+    
+    // 接続ボタンのイベント
+    connectBtn.onclick = () => {
+      const url = urlInput.value.trim();
+      if (!url) {
+        addErrorMessage('YouTubeライブURLを入力してください');
+        return;
+      }
+      
+      // URLからvideoIdを抽出
       let videoId = null;
       try {
         const u = new URL(url);
-        videoId = u.searchParams.get('v') || (u.pathname.split('/').pop());
+        videoId = u.searchParams.get('v') || u.pathname.split('/').pop();
       } catch {
+        // URLでない場合はvideoIdとみなす
         videoId = url;
       }
+      
+      if (!videoId) {
+        addErrorMessage('有効なVideo IDを取得できませんでした');
+        return;
+      }
+      
+      state.currentVideoId = videoId;
       ws.send(JSON.stringify({ type: 'connect', videoId }));
+      addSuccessMessage(`接続中: ${videoId}`);
+      statusEl.textContent = '接続中...';
     };
-
-    document.getElementById('disconnect').onclick = () => {
-      ws.send(JSON.stringify({ type: 'disconnect' }));
+    
+    // 切断ボタンのイベント
+    disconnectBtn.onclick = () => {
+      if (state.isConnected) {
+        ws.send(JSON.stringify({ type: 'disconnect' }));
+        addMetaMessage('接続を切断しました');
+        state.currentVideoId = null;
+        statusEl.textContent = '未接続';
+      }
     };
+    
+    // PIPウィンドウ機能
+    pipToggleBtn.onclick = () => {
+      if (state.pipWindow && !state.pipWindow.closed) {
+        // PIPウィンドウが既に開いている場合は閉じる
+        state.pipWindow.close();
+        state.pipWindow = null;
+        pipToggleBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 11h-8v6h8v-6zm4-8v18H1V3h22zm-2 16H3V5h18v14z"/>
+          </svg>
+          PIPウィンドウ
+        `;
+        addMetaMessage('PIPウィンドウを閉じました');
+      } else {
+        // 新しいウィンドウを開く
+        const pipWindow = window.open('', 'YouTubeLiveChatPIP', 
+          `width=400,height=600,left=${window.screenLeft + 20},top=${window.screenTop + 20}`);
+        
+        if (!pipWindow) {
+          addErrorMessage('ポップアップがブロックされました。ブラウザの設定を確認してください。');
+          return;
+        }
+        
+        // PIPウィンドウのコンテンツを設定
+        pipWindow.document.write(`
+          <!DOCTYPE html>
+          <html>
+          <head>
+            <meta charset="utf-8">
+            <title>YouTube Live Chat - PIP</title>
+            <style>
+              body {
+                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                background: #0a0e17;
+                color: #e2e8f0;
+                margin: 0;
+                padding: 0;
+              }
+              .pip-header {
+                background: #151b2a;
+                padding: 12px 16px;
+                border-bottom: 1px solid #2a3249;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              }
+              .pip-title {
+                font-weight: 600;
+                font-size: 14px;
+              }
+              #pip-chat {
+                height: calc(100vh - 45px);
+                overflow-y: auto;
+                padding: 16px;
+              }
+              .pip-message {
+                background: #1e2538;
+                border-radius: 8px;
+                padding: 12px;
+                margin-bottom: 12px;
+                border-left: 3px solid #3b82f6;
+              }
+              .pip-author {
+                font-weight: 600;
+                font-size: 13px;
+                margin-bottom: 4px;
+              }
+              .pip-text {
+                font-size: 14px;
+                color: #94a3b8;
+                line-height: 1.4;
+              }
+              .pip-time {
+                font-size: 11px;
+                color: #64748b;
+                margin-top: 4px;
+                text-align: right;
+              }
+            </style>
+          </head>
+          <body>
+            <div class="pip-header">
+              <div class="pip-title">YouTube Live Chat PIP</div>
+              <div style="font-size: 12px; color: #94a3b8;">${state.currentVideoId || '未接続'}</div>
+            </div>
+            <div id="pip-chat"></div>
+            <script>
+              // メッセージ受信用のイベントリスナー
+              window.addEventListener('message', function(event) {
+                const pipChat = document.getElementById('pip-chat');
+                
+                if (event.data.type === 'chatMessage') {
+                  const message = document.createElement('div');
+                  message.className = 'pip-message';
+                  message.innerHTML = \`
+                    <div class="pip-author">\${event.data.author}</div>
+                    <div class="pip-text">\${event.data.text}</div>
+                    <div class="pip-time">\${event.data.time}</div>
+                  \`;
+                  
+                  pipChat.appendChild(message);
+                  pipChat.scrollTop = pipChat.scrollHeight;
+                }
+              });
+            <\/script>
+          </body>
+          </html>
+        `);
+        
+        state.pipWindow = pipWindow;
+        pipToggleBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+          PIPを閉じる
+        `;
+        
+        // メインウィンドウのメッセージをPIPに転送するためのイベントリスナー
+        const originalDisplayMessage = displayMessage;
+        displayMessage = function(data) {
+          originalDisplayMessage(data);
+          
+          // PIPウィンドウにメッセージを転送
+          if (state.pipWindow && !state.pipWindow.closed) {
+            try {
+              const payload = typeof data.payload === 'string' ? 
+                JSON.parse(data.payload) : data.payload;
+              
+              if (data.type === 'chat' && payload.type === 'AddChatItemAction' && 
+                  payload.item.type === 'LiveChatTextMessage') {
+                
+                const item = payload.item;
+                const author = item.author;
+                const timestamp = new Date(parseInt(item.timestamp_usec) / 1000);
+                
+                // メッセージテキストの構築
+                let messageText = '';
+                if (item.message && item.message.runs) {
+                  item.message.runs.forEach(run => {
+                    if (run.text) {
+                      messageText += run.text;
+                    } else if (run.emoji) {
+                      messageText += run.emoji.shortcuts ? run.emoji.shortcuts[0] : '[絵文字]';
+                    }
+                  });
+                }
+                
+                state.pipWindow.postMessage({
+                  type: 'chatMessage',
+                  author: author.name || '匿名ユーザー',
+                  text: messageText || '(メッセージなし)',
+                  time: formatTime(timestamp)
+                }, '*');
+              }
+            } catch (error) {
+              console.error('PIP転送エラー:', error);
+            }
+          }
+        };
+        
+        addSuccessMessage('PIPウィンドウを開きました');
+        
+        // PIPウィンドウが閉じられたときの処理
+        const checkPIPClosed = setInterval(() => {
+          if (state.pipWindow && state.pipWindow.closed) {
+            clearInterval(checkPIPClosed);
+            state.pipWindow = null;
+            pipToggleBtn.innerHTML = `
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M19 11h-8v6h8v-6zm4-8v18H1V3h22zm-2 16H3V5h18v14z"/>
+              </svg>
+              PIPウィンドウ
+            `;
+            // 元のdisplayMessage関数に戻す
+            displayMessage = originalDisplayMessage;
+          }
+        }, 1000);
+      }
+    };
+    
+    // 初期化
+    updateStats();
+    addMetaMessage('YouTubeライブチャットビューアーが起動しました');
+    
+    // サンプルメッセージを追加（デモ用）
+    setTimeout(() => {
+      const sampleMessages = [
+        {
+          author: { name: "@サンプルユーザー", thumbnails: [] },
+          message: { runs: [{ text: "これはデモメッセージです" }] },
+          timestamp_usec: Date.now() * 1000
+        },
+        {
+          author: { name: "@テスター", badges: [{ tooltip: "メンバー" }], thumbnails: [] },
+          message: { runs: [{ text: "カスタム絵文字のテスト: " }, { emoji: { shortcuts: [":サンプル絵文字:"], image: [{ url: "https://example.com/emoji.png" }] } }] },
+          timestamp_usec: (Date.now() - 30000) * 1000
+        }
+      ];
+      
+      // 接続前にデモメッセージを表示
+      if (state.messageCount === 0) {
+        sampleMessages.forEach((msg, i) => {
+          setTimeout(() => {
+            displayMessage({
+              type: 'chat',
+              payload: JSON.stringify({
+                type: 'AddChatItemAction',
+                item: {
+                  type: 'LiveChatTextMessage',
+                  author: msg.author,
+                  message: msg.message,
+                  timestamp_usec: msg.timestamp_usec
+                }
+              })
+            });
+          }, i * 2000);
+        });
+      }
+    }, 1000);
   </script>
 </body>
 </html>
