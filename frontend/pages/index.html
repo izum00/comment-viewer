@@ -1,0 +1,84 @@
+<!doctype html>
+.msg{padding:6px;border-bottom:1px solid #f0f0f0}
+.meta{font-size:12px;color:#666}
+</style>
+</head>
+<body>
+<h1>YouTube ライブチャット (簡易)</h1>
+<p>ライブ URL を入力して <strong>Connect</strong> を押すとコメントをリアルタイムで受信します。</p>
+
+
+<!-- ここをあなたの WebSocket サーバのエンドポイントに変更してください -->
+<script>
+const WS_SERVER = 'wss://your-ws-server.example.com';
+</script>
+
+
+<div>
+<input id="url" type="text" placeholder="https://www.youtube.com/watch?v=... または https://www.youtube.com/live/..." />
+<button id="connect">Connect</button>
+<span id="status">Disconnected</span>
+</div>
+
+
+<div id="messages"></div>
+
+
+<script>
+let ws = null;
+const urlInput = document.getElementById('url');
+const connectBtn = document.getElementById('connect');
+const statusEl = document.getElementById('status');
+const messagesEl = document.getElementById('messages');
+
+
+function appendMessage(obj){
+const el = document.createElement('div');
+el.className = 'msg';
+el.innerHTML = `<div class="meta">${obj.author?.name ?? 'unknown'} <span>—</span> <small>${new Date().toLocaleTimeString()}</small></div><div>${obj.message ?? ''}</div>`;
+messagesEl.appendChild(el);
+messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+
+connectBtn.addEventListener('click', ()=>{
+if(!WS_SERVER || WS_SERVER.startsWith('wss://your-')){
+alert('index.html の WS_SERVER をあなたの wss エンドポイントに書き換えてください');
+return;
+}
+if(ws && ws.readyState === WebSocket.OPEN){
+ws.close();
+return;
+}
+
+
+ws = new WebSocket(WS_SERVER);
+statusEl.textContent = 'Connecting...';
+
+
+ws.addEventListener('open', ()=>{
+statusEl.textContent = 'Connected';
+const rawUrl = urlInput.value.trim();
+ws.send(JSON.stringify({action:'connect', url: rawUrl}));
+});
+
+
+ws.addEventListener('message', (ev)=>{
+try{
+const data = JSON.parse(ev.data);
+if(data.type === 'message') appendMessage(data);
+else if(data.type === 'system'){
+const el = document.createElement('div'); el.className='msg'; el.innerHTML = `<div class="meta">[system]</div><div>${data.text}</div>`; messagesEl.appendChild(el);
+}
+}catch(e){
+console.warn('非 JSON メッセージ', ev.data);
+}
+});
+
+
+ws.addEventListener('close', ()=>{ statusEl.textContent='Disconnected'; });
+ws.addEventListener('error', (e)=>{ statusEl.textContent='Error'; console.error(e); });
+});
+</script>
+</body>
+</html>
