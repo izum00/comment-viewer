@@ -1,13 +1,11 @@
 {
-"name": "youtube-chat-ws-server",
-"version": "1.0.0",
-"type": "module",
-"dependencies": {
-"express": "^4.18.2",
-"ws": "^8.13.0",
-"youtube-chat": "^0.16.0"
-},
-"scripts": {
-"start": "node backend/server.js"
-}
+  "name": "youtube-chat-ws",
+  "type": "module",
+  "dependencies": {
+    "ws": "^8.13.0",
+    "youtube-chat": "^2.2.0"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
 }
