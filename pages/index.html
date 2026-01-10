@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>YouTube Live Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: sans-serif; background:#fafafa; }
+    #chat { height: 80vh; overflow-y: auto; border:1px solid #ccc; padding:10px; }
+    .msg { border-bottom:1px solid #eee; padding:6px 0; }
+    .author { font-weight:bold; }
+  </style>
+</head>
+<body>
+  <h1>YouTube Live Chat（リアルタイム）</h1>
+  <div id="chat"></div>
+
+  <script>
+    // ★ あなたの wss エンドポイント
+    const WS_URL = "wss://comment-viewer.vercel.app";
+
+    const chat = document.getElementById("chat");
+    const ws = new WebSocket(WS_URL);
+
+    ws.onopen = () => {
+      console.log("WebSocket connected");
+    };
+
+    ws.onmessage = (event) => {
+      const msg = JSON.parse(event.data);
+      if (msg.type !== "chat") return;
+
+      const div = document.createElement("div");
+      div.className = "msg";
+
+      div.innerHTML = `
+        <div class="author">${msg.data.author?.name ?? "Unknown"}</div>
+        <div>${msg.data.text ?? msg.data.message}</div>
+      `;
+
+      chat.appendChild(div);
+      chat.scrollTop = chat.scrollHeight;
+    };
+
+    ws.onerror = (e) => console.error("ws error", e);
+    ws.onclose = () => console.log("ws closed");
+  </script>
+</body>
+</html>
