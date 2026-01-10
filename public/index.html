@@ -561,368 +561,83 @@
     </div>
   </div>
 <script>
-    // 状態管理
-    const state = {
-      messageCount: 0,
-      isConnected: false,
-      currentVideoId: null,
-      pipWindow: null,
-      pipIsNative: false,
-      autoScrollEnabled: true,
-      userScrolledUp: false,
-      pipAutoScrollEnabled: true,
-      pipUserScrolledUp: false
-    };
-    
-    // DOM要素の取得
-    const chat = document.getElementById('chat');
-    const urlInput = document.getElementById('url');
-    const connectBtn = document.getElementById('connect');
-    const disconnectBtn = document.getElementById('disconnect');
-    const pipToggleBtn = document.getElementById('pip-toggle');
-    const messageCountEl = document.getElementById('message-count');
-    const statusEl = document.getElementById('status');
-    const timestampEl = document.getElementById('timestamp');
-    const chatWindow = document.getElementById('chat-window');
-    const scrollToBottomBtn = document.getElementById('scroll-to-bottom');
-    
-    // WebSocket接続
-    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
-    
-    // メッセージ表示関数
-    function displayMessage(data) {
-      try {
-        // ペイロードが文字列の場合はパース
-        const payload = typeof data.payload === 'string' ? 
-          JSON.parse(data.payload) : data.payload;
-        
-        // チャットメッセージの場合
-        if (data.type === 'chat' && payload.type === 'AddChatItemAction') {
-          const item = payload.item;
-          
-          // テキストメッセージのみ処理
-          if (item.type === 'LiveChatTextMessage') {
-            state.messageCount++;
-            updateStats();
-            
-            // メッセージ要素を作成
-            const messageEl = document.createElement('div');
-            messageEl.className = 'message';
-            
-            // 投稿者情報
-            const author = item.author;
-            const timestamp = new Date(parseInt(item.timestamp_usec) / 1000);
-            
-            // メッセージテキストの構築
-            let messageText = '';
-            if (item.message && item.message.runs) {
-              item.message.runs.forEach(run => {
-                if (run.text) {
-                  // テキストの場合
-                  if (run.emoji && run.emoji.is_custom) {
-                    // カスタム絵文字の場合
-                    const emoji = run.emoji;
-                    let emojiUrl = '';
-                    
-                    // 最適なサイズの画像を選択
-                    if (emoji.image && emoji.image.length > 0) {
-                      // 24x24の画像を優先、なければ最初の画像を使用
-                      const smallImg = emoji.image.find(img => img.width === 24 && img.height === 24);
-                      emojiUrl = smallImg ? smallImg.url : emoji.image[0].url;
-                    }
-                    
-                    if (emojiUrl) {
-                      messageText += `<img src="${emojiUrl}" alt="${emoji.shortcuts ? emoji.shortcuts[0] : 'emoji'}" class="custom-emoji">`;
-                    } else if (emoji.emoji_id) {
-                      messageText += emoji.emoji_id;
-                    }
-                  } else {
-                    // 通常のテキスト
-                    messageText += run.text;
-                  }
-                } else if (run.emoji) {
-                  // run.textがない場合の絵文字処理（旧形式）
-                  const emoji = run.emoji;
-                  let emojiUrl = '';
-                  
-                  if (emoji.image && emoji.image.length > 0) {
-                    // 24x24の画像を優先、なければ最初の画像を使用
-                    const smallImg = emoji.image.find(img => img.width === 24 && img.height === 24);
-                    emojiUrl = smallImg ? smallImg.url : emoji.image[0].url;
-                  }
-                  
-                  if (emojiUrl) {
-                    messageText += `<img src="${emojiUrl}" alt="${emoji.shortcuts ? emoji.shortcuts[0] : 'emoji'}" class="custom-emoji">`;
-                  } else if (emoji.emoji_id) {
-                    messageText += emoji.emoji_id;
-                  }
-                }
-              });
-            }
-            
-            // バッジの取得
-            let badgeText = '';
-            if (author.badges && author.badges.length > 0) {
-              const badge = author.badges[0];
-              if (badge.tooltip) {
-                badgeText = badge.tooltip;
-              } else if (badge.type === 'LiveChatAuthorBadge') {
-                badgeText = 'メンバー';
-              }
-            }
-            
-            // アバターURL（小さいサイズを優先）
-            const avatarUrl = author.thumbnails && author.thumbnails[1] ? 
-              author.thumbnails[1].url : 
-              (author.thumbnails && author.thumbnails[0] ? author.thumbnails[0].url : '');
-            
-            // メッセージHTMLの構築
-            messageEl.innerHTML = `
-              <div class="author-avatar">
-                ${avatarUrl ? `<img src="${avatarUrl}" alt="${author.name}">` : 
-                  `<div style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">${author.name ? author.name.charAt(1) : '?'}</div>`}
-              </div>
-              <div class="message-content">
-                <div class="message-header">
-                  <span class="author-name">${author.name || '匿名ユーザー'}</span>
-                  ${badgeText ? `<span class="author-badge">${badgeText}</span>` : ''}
-                </div>
-                <div class="message-text">${messageText || '(メッセージなし)'}</div>
-                <div class="message-time">${formatTime(timestamp)}</div>
-              </div>
-            `;
-            
-            // 既存の空状態を削除
-            const emptyState = chat.querySelector('.empty-state');
-            if (emptyState) {
-              emptyState.remove();
-            }
-            
-            // チャットに追加
-            chat.appendChild(messageEl);
-            
-            // 自動スクロールが有効な場合のみ一番下までスクロール
-            if (state.autoScrollEnabled) {
-              scrollToBottom();
-            }
-            
-            // PIPウィンドウに転送
-            sendToPIP({
-              author: author.name || '匿名ユーザー',
-              text: messageText || '(メッセージなし)',
-              time: formatTime(timestamp),
-              badge: badgeText,
-              avatarUrl: avatarUrl,
-              authorInitial: author.name ? author.name.charAt(0) : '?'
-            });
-          }
-        } 
-        // メタ情報の場合
-        else if (data.type === 'meta' || data.type === 'meta-update') {
-          addMetaMessage(data.message || 'メタ情報を受信しました');
-        }
-        // エラーの場合
-        else if (data.type === 'error') {
-          addErrorMessage(data.message || 'エラーが発生しました');
-        }
-      } catch (error) {
-        console.error('メッセージ表示エラー:', error);
-        addErrorMessage(`データ解析エラー: ${error.message}`);
-      }
-    }
-    
-    // 一番下までスクロール
-    function scrollToBottom() {
-      chat.scrollTop = chat.scrollHeight;
-      state.userScrolledUp = false;
-      updateScrollButton();
-    }
-    
-    // PIPウィンドウ用スクロール
-    function scrollPIPToBottom(pipChat) {
-      if (!pipChat) return;
-      pipChat.scrollTop = pipChat.scrollHeight;
-      state.pipUserScrolledUp = false;
-      updatePIPScrollButton(pipChat);
-    }
-    
-    // スクロールボタンの表示を更新
-    function updateScrollButton() {
-      const scrollThreshold = 100;
-      const isNearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight <= scrollThreshold;
-      
-      if (!isNearBottom && chat.children.length > 0) {
-        state.autoScrollEnabled = false;
-        state.userScrolledUp = true;
-        scrollToBottomBtn.classList.add('visible');
-      } else {
-        scrollToBottomBtn.classList.remove('visible');
-      }
-    }
-    
-    // PIPウィンドウ用スクロールボタン更新
-    function updatePIPScrollButton(pipChat) {
-      if (!pipChat) return;
-      const scrollThreshold = 50;
-      const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
-      const pipScrollBtn = state.pipWindow.document.getElementById('pip-scroll-to-bottom');
-      
-      if (pipScrollBtn) {
-        if (!isNearBottom && pipChat.children.length > 0) {
-          state.pipAutoScrollEnabled = false;
-          state.pipUserScrolledUp = true;
-          pipScrollBtn.classList.add('visible');
-        } else {
-          pipScrollBtn.classList.remove('visible');
-        }
-      }
-    }
-    
-    // スクロールイベントリスナー
-    chat.addEventListener('scroll', () => {
-      updateScrollButton();
-    });
-    
-    // スクロールダウンボタンのイベント
-    scrollToBottomBtn.addEventListener('click', () => {
-      scrollToBottom();
-      state.autoScrollEnabled = true;
-      scrollToBottomBtn.classList.remove('visible');
-    });
-    
-    // メタメッセージを追加
-    function addMetaMessage(text) {
-      const metaEl = document.createElement('div');
-      metaEl.className = 'meta-message';
-      metaEl.textContent = text;
-      chat.appendChild(metaEl);
-      
-      if (state.autoScrollEnabled) {
-        scrollToBottom();
-      }
-    }
-    
-    // エラーメッセージを追加
-    function addErrorMessage(text) {
-      const errorEl = document.createElement('div');
-      errorEl.className = 'meta-message error-message';
-      errorEl.textContent = text;
-      chat.appendChild(errorEl);
-      
-      if (state.autoScrollEnabled) {
-        scrollToBottom();
-      }
-    }
-    
-    // 成功メッセージを追加
-    function addSuccessMessage(text) {
-      const successEl = document.createElement('div');
-      successEl.className = 'meta-message success-message';
-      successEl.textContent = text;
-      chat.appendChild(successEl);
-      
-      if (state.autoScrollEnabled) {
-        scrollToBottom();
-      }
-    }
-    
-    // 時間フォーマット
-    function formatTime(date) {
-      return date.toLocaleTimeString('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
-    }
-    
-    // 統計情報の更新
-    function updateStats() {
-      messageCountEl.textContent = `${state.messageCount} メッセージ`;
-      timestampEl.textContent = new Date().toLocaleTimeString('ja-JP', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    }
-    
-    // PIPウィンドウにメッセージを送信
-    function sendToPIP(messageData) {
-      if (!state.pipWindow) return;
-      
-      if (state.pipIsNative) {
-        // ネイティブPiPの場合
-        const pipChat = state.pipWindow.document.getElementById('pip-chat');
-        const pipScrollBtn = state.pipWindow.document.getElementById('pip-scroll-to-bottom');
-        
-        if (pipChat) {
-          const message = state.pipWindow.document.createElement('div');
-          message.className = 'pip-message';
-          
-          // 投稿者のアバターHTML
-          const avatarHTML = messageData.avatarUrl ? 
-            `<img src="${messageData.avatarUrl}" alt="${messageData.author}" class="pip-avatar">` :
-            `<div class="pip-avatar-initial">${messageData.authorInitial}</div>`;
-          
-          // 絵文字HTMLをそのまま渡す
-          const textWithEmojis = messageData.text;
-          
-          message.innerHTML = `
-            <div class="pip-message-inner">
-              <div class="pip-avatar-container">
-                ${avatarHTML}
-              </div>
-              <div class="pip-content">
-                <div class="pip-author">${messageData.author} ${messageData.badge ? `<span class="pip-badge">${messageData.badge}</span>` : ''}</div>
-                <div class="pip-text">${textWithEmojis}</div>
-                <div class="pip-time">${messageData.time}</div>
-              </div>
-            </div>
-          `;
-          
-          pipChat.appendChild(message);
-          
-          // 自動スクロールが有効な場合のみ一番下までスクロール
-          if (state.pipAutoScrollEnabled) {
-            scrollPIPToBottom(pipChat);
-          }
-          
-          // PIPスクロールボタンを更新
-          if (pipScrollBtn) {
-            updatePIPScrollButton(pipChat);
-          }
-        }
-      } else if (!state.pipWindow.closed) {
-        // 通常ウィンドウの場合
-        try {
-          state.pipWindow.postMessage({
-            type: 'chatMessage',
-            ...messageData
-          }, '*');
-        } catch (error) {
-          console.error('PIP転送エラー:', error);
-        }
-      }
-    }
+// 状態管理
+const state = {
+  messageCount: 0,
+  isConnected: false,
+  currentVideoId: null,
+  pipWindow: null,
+  pipIsNative: false,
+  autoScrollEnabled: true,
+  userScrolledUp: false,
+  reconnectAttempts: 0,
+  maxReconnectAttempts: 5,
+  reconnectDelay: 3000,
+  ws: null
+};
+
+// DOM要素の取得
+const chat = document.getElementById('chat');
+const urlInput = document.getElementById('url');
+const connectBtn = document.getElementById('connect');
+const disconnectBtn = document.getElementById('disconnect');
+const pipToggleBtn = document.getElementById('pip-toggle');
+const messageCountEl = document.getElementById('message-count');
+const statusEl = document.getElementById('status');
+const timestampEl = document.getElementById('timestamp');
+const chatWindow = document.getElementById('chat-window');
+const scrollToBottomBtn = document.getElementById('scroll-to-bottom');
+
+// WebSocket接続関数
+function connectWebSocket() {
+  if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) {
+    console.log('WebSocket is already connected or connecting');
+    return;
+  }
+
+  try {
+    state.ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
     
     // WebSocketイベントハンドラ
-    ws.onopen = () => {
+    state.ws.onopen = () => {
       state.isConnected = true;
+      state.reconnectAttempts = 0;
       statusEl.textContent = '接続済み';
       statusEl.style.color = 'var(--success)';
       addMetaMessage('WebSocketサーバーに接続しました');
+      
+      // 接続時に現在のvideoIdがあれば再接続
+      if (state.currentVideoId) {
+        state.ws.send(JSON.stringify({ type: 'connect', videoId: state.currentVideoId }));
+        addSuccessMessage(`再接続中: ${state.currentVideoId}`);
+      }
     };
     
-    ws.onclose = () => {
+    state.ws.onclose = (event) => {
       state.isConnected = false;
       statusEl.textContent = '未接続';
       statusEl.style.color = 'var(--text-secondary)';
-      addMetaMessage('WebSocketサーバーから切断されました');
+      
+      // 意図的な切断でない場合は再接続を試みる
+      if (state.currentVideoId && !event.wasClean && state.reconnectAttempts < state.maxReconnectAttempts) {
+        state.reconnectAttempts++;
+        addMetaMessage(`接続が切断されました。${state.reconnectDelay/1000}秒後に再接続を試みます... (試行 ${state.reconnectAttempts}/${state.maxReconnectAttempts})`);
+        
+        setTimeout(() => {
+          if (state.currentVideoId && !state.isConnected) {
+            connectWebSocket();
+          }
+        }, state.reconnectDelay);
+      } else {
+        addMetaMessage('WebSocketサーバーから切断されました');
+      }
     };
     
-    ws.onerror = (e) => {
-      addErrorMessage(`WebSocketエラー: ${e.message}`);
+    state.ws.onerror = (e) => {
+      addErrorMessage(`WebSocketエラー: ${e.message || '不明なエラー'}`);
     };
     
-    ws.onmessage = (ev) => {
+    state.ws.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);
         displayMessage(data);
@@ -941,54 +656,828 @@
       }
     };
     
-    // 接続ボタンのイベント
-    connectBtn.onclick = () => {
-      const url = urlInput.value.trim();
-      if (!url) {
-        addErrorMessage('YouTubeライブURLを入力してください');
-        return;
-      }
-      
-      // URLからvideoIdを抽出
-      let videoId = null;
-      try {
-        const u = new URL(url);
-        videoId = u.searchParams.get('v') || u.pathname.split('/').pop();
-      } catch {
-        // URLでない場合はvideoIdとみなす
-        videoId = url;
-      }
-      
-      if (!videoId) {
-        addErrorMessage('有効なVideo IDを取得できませんでした');
-        return;
-      }
-      
-      state.currentVideoId = videoId;
-      ws.send(JSON.stringify({ type: 'connect', videoId }));
-      addSuccessMessage(`接続中: ${videoId}`);
-      statusEl.textContent = '接続中...';
-    };
+  } catch (error) {
+    console.error('WebSocket接続エラー:', error);
+    addErrorMessage(`WebSocket接続に失敗しました: ${error.message}`);
+  }
+}
+
+// メッセージ表示関数
+function displayMessage(data) {
+  try {
+    // ペイロードが文字列の場合はパース
+    const payload = typeof data.payload === 'string' ? 
+      JSON.parse(data.payload) : data.payload;
     
-    // 切断ボタンのイベント
-    disconnectBtn.onclick = () => {
-      if (state.isConnected) {
-        ws.send(JSON.stringify({ type: 'disconnect' }));
-        addMetaMessage('接続を切断しました');
-        state.currentVideoId = null;
-        statusEl.textContent = '未接続';
-      }
-    };
-    
-    // PIPウィンドウ機能
-    pipToggleBtn.onclick = async () => {
-      if (state.pipWindow && !state.pipWindow.closed) {
-        // PIPウィンドウが既に開いている場合は閉じる
-        if (state.pipIsNative && state.pipWindow.close) {
-          state.pipWindow.close();
-        } else if (!state.pipWindow.closed) {
-          state.pipWindow.close();
+    // チャットメッセージの場合
+    if (data.type === 'chat' && payload.type === 'AddChatItemAction') {
+      const item = payload.item;
+      
+      // テキストメッセージのみ処理
+      if (item.type === 'LiveChatTextMessage') {
+        state.messageCount++;
+        updateStats();
+        
+        // メッセージ要素を作成
+        const messageEl = document.createElement('div');
+        messageEl.className = 'message';
+        
+        // 投稿者情報
+        const author = item.author;
+        const timestamp = new Date(parseInt(item.timestamp_usec) / 1000);
+        
+        // メッセージテキストの構築
+        let messageText = '';
+        if (item.message && item.message.runs) {
+          item.message.runs.forEach(run => {
+            if (run.text) {
+              // テキストの場合
+              if (run.emoji && run.emoji.is_custom) {
+                // カスタム絵文字の場合
+                const emoji = run.emoji;
+                let emojiUrl = '';
+                
+                // 最適なサイズの画像を選択
+                if (emoji.image && emoji.image.length > 0) {
+                  // 24x24の画像を優先、なければ最初の画像を使用
+                  const smallImg = emoji.image.find(img => img.width === 24 && img.height === 24);
+                  emojiUrl = smallImg ? smallImg.url : emoji.image[0].url;
+                }
+                
+                if (emojiUrl) {
+                  messageText += `<img src="${emojiUrl}" alt="${emoji.shortcuts ? emoji.shortcuts[0] : 'emoji'}" class="custom-emoji">`;
+                } else if (emoji.emoji_id) {
+                  messageText += emoji.emoji_id;
+                }
+              } else {
+                // 通常のテキスト
+                messageText += run.text;
+              }
+            } else if (run.emoji) {
+              // run.textがない場合の絵文字処理（旧形式）
+              const emoji = run.emoji;
+              let emojiUrl = '';
+              
+              if (emoji.image && emoji.image.length > 0) {
+                // 24x24の画像を優先、なければ最初の画像を使用
+                const smallImg = emoji.image.find(img => img.width === 24 && img.height === 24);
+                emojiUrl = smallImg ? smallImg.url : emoji.image[0].url;
+              }
+              
+              if (emojiUrl) {
+                messageText += `<img src="${emojiUrl}" alt="${emoji.shortcuts ? emoji.shortcuts[0] : 'emoji'}" class="custom-emoji">`;
+              } else if (emoji.emoji_id) {
+                messageText += emoji.emoji_id;
+              }
+            }
+          });
         }
+        
+        // バッジの取得
+        let badgeText = '';
+        if (author.badges && author.badges.length > 0) {
+          const badge = author.badges[0];
+          if (badge.tooltip) {
+            badgeText = badge.tooltip;
+          } else if (badge.type === 'LiveChatAuthorBadge') {
+            badgeText = 'メンバー';
+          }
+        }
+        
+        // アバターURL（小さいサイズを優先）
+        const avatarUrl = author.thumbnails && author.thumbnails[1] ? 
+          author.thumbnails[1].url : 
+          (author.thumbnails && author.thumbnails[0] ? author.thumbnails[0].url : '');
+        
+        // メッセージHTMLの構築
+        messageEl.innerHTML = `
+          <div class="author-avatar">
+            ${avatarUrl ? `<img src="${avatarUrl}" alt="${author.name}" crossorigin="anonymous" onerror="this.style.display='none'; this.parentElement.innerHTML='<div style=\"background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border-radius: 8px;\">${author.name ? author.name.charAt(0) : '?'}</div>';" />` : 
+              `<div style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; border-radius: 8px;">${author.name ? author.name.charAt(0) : '?'}</div>`}
+          </div>
+          <div class="message-content">
+            <div class="message-header">
+              <span class="author-name">${author.name || '匿名ユーザー'}</span>
+              ${badgeText ? `<span class="author-badge">${badgeText}</span>` : ''}
+            </div>
+            <div class="message-text">${messageText || '(メッセージなし)'}</div>
+            <div class="message-time">${formatTime(timestamp)}</div>
+          </div>
+        `;
+        
+        // 既存の空状態を削除
+        const emptyState = chat.querySelector('.empty-state');
+        if (emptyState) {
+          emptyState.remove();
+        }
+        
+        // チャットに追加
+        chat.appendChild(messageEl);
+        
+        // 自動スクロールが有効な場合のみ一番下までスクロール
+        if (state.autoScrollEnabled && !state.userScrolledUp) {
+          scrollToBottom();
+        }
+        
+        // PIPウィンドウに転送
+        sendToPIP({
+          author: author.name || '匿名ユーザー',
+          text: messageText.replace(/<[^>]*>/g, '') || '(メッセージなし)',
+          time: formatTime(timestamp),
+          badge: badgeText,
+          avatarUrl: avatarUrl,
+          authorInitial: author.name ? author.name.charAt(0) : '?'
+        });
+      }
+    } 
+    // メタ情報の場合
+    else if (data.type === 'meta' || data.type === 'meta-update') {
+      addMetaMessage(data.message || 'メタ情報を受信しました');
+    }
+    // エラーの場合
+    else if (data.type === 'error') {
+      addErrorMessage(data.message || 'エラーが発生しました');
+    }
+  } catch (error) {
+    console.error('メッセージ表示エラー:', error);
+    addErrorMessage(`データ解析エラー: ${error.message}`);
+  }
+}
+
+// 一番下までスクロール
+function scrollToBottom() {
+  chat.scrollTop = chat.scrollHeight;
+  state.userScrolledUp = false;
+  updateScrollButton();
+}
+
+// 自動スクロールを有効化
+function enableAutoScroll() {
+  state.autoScrollEnabled = true;
+  state.userScrolledUp = false;
+  scrollToBottom();
+  updateScrollButton();
+}
+
+// スクロールボタンの表示を更新
+function updateScrollButton() {
+  const scrollThreshold = 100; // スクロール位置が100px以上上の場合はボタンを表示
+  const isNearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight <= scrollThreshold;
+  
+  if (!isNearBottom && chat.children.length > 0) {
+    state.autoScrollEnabled = false;
+    state.userScrolledUp = true;
+    scrollToBottomBtn.classList.add('visible');
+  } else {
+    scrollToBottomBtn.classList.remove('visible');
+  }
+}
+
+// スクロールイベントリスナー
+chat.addEventListener('scroll', () => {
+  updateScrollButton();
+});
+
+// スクロールダウンボタンのイベント
+scrollToBottomBtn.addEventListener('click', () => {
+  enableAutoScroll();
+});
+
+// メタメッセージを追加
+function addMetaMessage(text) {
+  const metaEl = document.createElement('div');
+  metaEl.className = 'meta-message';
+  metaEl.textContent = text;
+  chat.appendChild(metaEl);
+  
+  // 自動スクロールが有効でユーザーがスクロールしていない場合のみ
+  if (state.autoScrollEnabled && !state.userScrolledUp) {
+    scrollToBottom();
+  }
+}
+
+// エラーメッセージを追加
+function addErrorMessage(text) {
+  const errorEl = document.createElement('div');
+  errorEl.className = 'meta-message error-message';
+  errorEl.textContent = text;
+  chat.appendChild(errorEl);
+  
+  if (state.autoScrollEnabled && !state.userScrolledUp) {
+    scrollToBottom();
+  }
+}
+
+// 成功メッセージを追加
+function addSuccessMessage(text) {
+  const successEl = document.createElement('div');
+  successEl.className = 'meta-message success-message';
+  successEl.textContent = text;
+  chat.appendChild(successEl);
+  
+  if (state.autoScrollEnabled && !state.userScrolledUp) {
+    scrollToBottom();
+  }
+}
+
+// 時間フォーマット
+function formatTime(date) {
+  return date.toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
+  });
+}
+
+// 統計情報の更新
+function updateStats() {
+  messageCountEl.textContent = `${state.messageCount} メッセージ`;
+  timestampEl.textContent = new Date().toLocaleTimeString('ja-JP', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+// PIPウィンドウにメッセージを送信
+function sendToPIP(messageData) {
+  if (!state.pipWindow) return;
+  
+  if (state.pipIsNative) {
+    // ネイティブPiPの場合
+    const pipChat = state.pipWindow.document.getElementById('pip-chat');
+    if (pipChat) {
+      const message = state.pipWindow.document.createElement('div');
+      message.className = 'pip-message';
+      
+      // 絵文字HTMLをそのまま渡す
+      const textWithEmojis = messageData.text;
+      
+      // アバターをPIPに含める
+      const avatarHtml = messageData.avatarUrl ? 
+        `<img src="${messageData.avatarUrl}" alt="${messageData.author}" class="pip-avatar" crossorigin="anonymous" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\"pip-avatar-initial\" style=\"background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center;\">${messageData.authorInitial}</div>';" />` :
+        `<div class="pip-avatar-initial">${messageData.authorInitial}</div>`;
+      
+      message.innerHTML = `
+        <div class="pip-message-content">
+          <div class="pip-avatar-container">
+            ${avatarHtml}
+          </div>
+          <div class="pip-text-container">
+            <div class="pip-author">${messageData.author} ${messageData.badge ? `<span class="pip-badge">${messageData.badge}</span>` : ''}</div>
+            <div class="pip-text">${textWithEmojis}</div>
+            <div class="pip-time">${messageData.time}</div>
+          </div>
+        </div>
+      `;
+      
+      pipChat.appendChild(message);
+      
+      // PIPウィンドウでも自動スクロールを制御
+      const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= 50;
+      if (isNearBottom) {
+        pipChat.scrollTop = pipChat.scrollHeight;
+      }
+    }
+  } else if (!state.pipWindow.closed) {
+    // 通常ウィンドウの場合
+    try {
+      state.pipWindow.postMessage({
+        type: 'chatMessage',
+        ...messageData
+      }, '*');
+    } catch (error) {
+      console.error('PIP転送エラー:', error);
+    }
+  }
+}
+
+// 接続ボタンのイベント
+connectBtn.onclick = () => {
+  const url = urlInput.value.trim();
+  if (!url) {
+    addErrorMessage('YouTubeライブURLを入力してください');
+    return;
+  }
+  
+  // URLからvideoIdを抽出
+  let videoId = null;
+  try {
+    // URLかどうかをチェック
+    if (url.includes('http://') || url.includes('https://') || url.includes('www.')) {
+      // URL形式の場合
+      const u = new URL(url);
+      videoId = u.searchParams.get('v');
+      if (!videoId) {
+        // 短縮URLの場合（youtu.be/VIDEOID）
+        const pathParts = u.pathname.split('/').filter(p => p);
+        videoId = pathParts[pathParts.length - 1];
+      }
+    } else {
+      // 直接videoIdの場合
+      videoId = url;
+    }
+  } catch {
+    // URLでない場合はvideoIdとみなす
+    videoId = url;
+  }
+  
+  if (!videoId) {
+    addErrorMessage('有効なVideo IDを取得できませんでした');
+    return;
+  }
+  
+  // WebSocketが接続されていない場合は接続
+  if (!state.ws || state.ws.readyState !== WebSocket.OPEN) {
+    connectWebSocket();
+    
+    // WebSocketが開くのを待ってから接続メッセージを送信
+    const checkConnection = setInterval(() => {
+      if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+        clearInterval(checkConnection);
+        state.currentVideoId = videoId;
+        state.ws.send(JSON.stringify({ type: 'connect', videoId }));
+        addSuccessMessage(`接続中: ${videoId}`);
+        statusEl.textContent = '接続中...';
+      }
+      
+      // タイムアウト
+      setTimeout(() => {
+        clearInterval(checkConnection);
+      }, 10000);
+    }, 100);
+  } else {
+    // 既に接続されている場合は直接接続
+    state.currentVideoId = videoId;
+    state.ws.send(JSON.stringify({ type: 'connect', videoId }));
+    addSuccessMessage(`接続中: ${videoId}`);
+    statusEl.textContent = '接続中...';
+  }
+};
+
+// 切断ボタンのイベント
+disconnectBtn.onclick = () => {
+  if (state.ws && state.ws.readyState === WebSocket.OPEN) {
+    state.ws.send(JSON.stringify({ type: 'disconnect' }));
+    state.currentVideoId = null;
+    state.reconnectAttempts = 0;
+    addMetaMessage('接続を切断しました');
+    statusEl.textContent = '未接続';
+    
+    // WebSocketを閉じる
+    setTimeout(() => {
+      if (state.ws) {
+        state.ws.close();
+      }
+    }, 100);
+  } else {
+    addErrorMessage('接続されていません');
+  }
+};
+
+// PIPウィンドウ機能
+pipToggleBtn.onclick = async () => {
+  if (state.pipWindow && !state.pipWindow.closed) {
+    // PIPウィンドウが既に開いている場合は閉じる
+    if (state.pipIsNative && state.pipWindow.close) {
+      state.pipWindow.close();
+    } else if (!state.pipWindow.closed) {
+      state.pipWindow.close();
+    }
+    state.pipWindow = null;
+    state.pipIsNative = false;
+    pipToggleBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19 11h-8v6h8v-6zm4-8v18H1V3h22zm-2 16H3V5h18v14z"/>
+      </svg>
+      PIPウィンドウ
+    `;
+    addMetaMessage('PIPウィンドウを閉じました');
+  } else {
+    // Document Picture-in-Picture APIを試す
+    if ('documentPictureInPicture' in window) {
+      try {
+        const pipWindow = await documentPictureInPicture.requestWindow({
+          width: 400,
+          height: 600
+        });
+        
+        // PiPウィンドウのコンテンツを設定
+        pipWindow.document.body.innerHTML = `
+          <style>
+            body {
+              font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+              background: #0a0e17;
+              color: #e2e8f0;
+              margin: 0;
+              padding: 0;
+            }
+            .pip-header {
+              background: #151b2a;
+              padding: 12px 16px;
+              border-bottom: 1px solid #2a3249;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              position: sticky;
+              top: 0;
+              z-index: 10;
+            }
+            .pip-title {
+              font-weight: 600;
+              font-size: 14px;
+            }
+            #pip-chat {
+              height: calc(100vh - 45px);
+              overflow-y: auto;
+              padding: 16px;
+              scrollbar-width: thin;
+              scrollbar-color: #2a3249 #1e2538;
+            }
+            #pip-chat::-webkit-scrollbar {
+              width: 6px;
+            }
+            #pip-chat::-webkit-scrollbar-track {
+              background: #1e2538;
+              border-radius: 3px;
+            }
+            #pip-chat::-webkit-scrollbar-thumb {
+              background: #2a3249;
+              border-radius: 3px;
+            }
+            #pip-chat::-webkit-scrollbar-thumb:hover {
+              background: #3b82f6;
+            }
+            .pip-message {
+              margin-bottom: 12px;
+              animation: fadeIn 0.3s ease-out;
+            }
+            .pip-message-content {
+              display: flex;
+              gap: 10px;
+            }
+            @keyframes fadeIn {
+              from { opacity: 0; transform: translateY(5px); }
+              to { opacity: 1; transform: translateY(0); }
+            }
+            .pip-avatar-container {
+              flex-shrink: 0;
+            }
+            .pip-avatar, .pip-avatar-initial {
+              width: 32px;
+              height: 32px;
+              border-radius: 6px;
+              overflow: hidden;
+            }
+            .pip-avatar {
+              object-fit: cover;
+            }
+            .pip-avatar-initial {
+              background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+              color: white;
+              font-weight: bold;
+              font-size: 14px;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .pip-text-container {
+              flex: 1;
+              min-width: 0;
+            }
+            .pip-author {
+              font-weight: 600;
+              font-size: 13px;
+              margin-bottom: 4px;
+              display: flex;
+              align-items: center;
+              gap: 6px;
+            }
+            .pip-badge {
+              font-size: 10px;
+              padding: 1px 4px;
+              background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+              color: white;
+              border-radius: 3px;
+              font-weight: 500;
+            }
+            .pip-text {
+              font-size: 14px;
+              color: #94a3b8;
+              line-height: 1.4;
+              word-break: break-word;
+            }
+            .pip-emoji {
+              width: 20px;
+              height: 20px;
+              vertical-align: middle;
+              margin: 0 1px;
+            }
+            .pip-time {
+              font-size: 11px;
+              color: #64748b;
+              margin-top: 4px;
+              text-align: right;
+            }
+          </style>
+          <div class="pip-header">
+            <div class="pip-title">YouTube Live Chat PIP</div>
+            <div style="font-size: 12px; color: #94a3b8;">${state.currentVideoId || '未接続'}</div>
+          </div>
+          <div id="pip-chat">
+            <div style="text-align: center; color: #64748b; padding: 20px; font-size: 13px;">
+              PIPウィンドウ<br>メッセージがここに表示されます
+            </div>
+          </div>
+          <script>
+            // メッセージ受信用のイベントリスナー
+            window.addEventListener('message', function(event) {
+              const pipChat = document.getElementById('pip-chat');
+              
+              if (event.data.type === 'chatMessage') {
+                const message = document.createElement('div');
+                message.className = 'pip-message';
+                
+                // 絵文字を含むテキストを処理
+                const textWithEmojis = event.data.text;
+                
+                // アバターを表示
+                const avatarHtml = event.data.avatarUrl ? 
+                  \`<img src="\${event.data.avatarUrl}" alt="\${event.data.author}" class="pip-avatar" crossorigin="anonymous" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\"pip-avatar-initial\" style=\"background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center;\">\${event.data.authorInitial}</div>';" />\` :
+                  \`<div class="pip-avatar-initial">\${event.data.authorInitial}</div>\`;
+                
+                message.innerHTML = \`
+                  <div class="pip-message-content">
+                    <div class="pip-avatar-container">
+                      \${avatarHtml}
+                    </div>
+                    <div class="pip-text-container">
+                      <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
+                      <div class="pip-text">\${textWithEmojis}</div>
+                      <div class="pip-time">\${event.data.time}</div>
+                    </div>
+                  </div>
+                \`;
+                
+                pipChat.appendChild(message);
+                
+                // ユーザーが一番下近くにいる場合のみ自動スクロール
+                const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= 50;
+                if (isNearBottom) {
+                  pipChat.scrollTop = pipChat.scrollHeight;
+                }
+              }
+            });
+            
+            // PIPウィンドウ内でのスクロールイベント
+            const pipChat = document.getElementById('pip-chat');
+            pipChat.addEventListener('scroll', function() {
+              // 必要に応じてスクロール状態を管理
+              const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= 50;
+              // ここでスクロール状態を管理するロジックを追加できます
+            });
+          <\/script>
+        `;
+        
+        state.pipWindow = pipWindow;
+        state.pipIsNative = true;
+        pipToggleBtn.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+          PIPを閉じる
+        `;
+        
+        addSuccessMessage('ネイティブPIPウィンドウを開きました');
+        
+        // PiPウィンドウが閉じられたときの処理
+        pipWindow.addEventListener('pagehide', () => {
+          state.pipWindow = null;
+          state.pipIsNative = false;
+          pipToggleBtn.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M19 11h-8v6h8v-6zm4-8v18H1V3h22zm-2 16H3V5h18v14z"/>
+            </svg>
+            PIPウィンドウ
+          `;
+        });
+        
+        return;
+      } catch (error) {
+        console.warn('Native PiP failed:', error);
+        addMetaMessage('ネイティブPIPに失敗しました。代替方法を使用します。');
+      }
+    }
+    
+    // ネイティブPiPが使えない場合は通常のウィンドウを開く
+    const pipWindow = window.open('', 'YouTubeLiveChatPIP', 
+      `width=400,height=600,left=${window.screenLeft + 20},top=${window.screenTop + 20}`);
+    
+    if (!pipWindow) {
+      addErrorMessage('ポップアップがブロックされました。ブラウザの設定を確認してください。');
+      return;
+    }
+    
+    // PIPウィンドウのコンテンツを設定
+    pipWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>YouTube Live Chat - PIP</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: #0a0e17;
+            color: #e2e8f0;
+            margin: 0;
+            padding: 0;
+          }
+          .pip-header {
+            background: #151b2a;
+            padding: 12px 16px;
+            border-bottom: 1px solid #2a3249;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+          }
+          .pip-title {
+            font-weight: 600;
+            font-size: 14px;
+          }
+          #pip-chat {
+            height: calc(100vh - 45px);
+            overflow-y: auto;
+            padding: 16px;
+            scrollbar-width: thin;
+            scrollbar-color: #2a3249 #1e2538;
+          }
+          #pip-chat::-webkit-scrollbar {
+            width: 6px;
+          }
+          #pip-chat::-webkit-scrollbar-track {
+            background: #1e2538;
+            border-radius: 3px;
+          }
+          #pip-chat::-webkit-scrollbar-thumb {
+            background: #2a3249;
+            border-radius: 3px;
+          }
+          #pip-chat::-webkit-scrollbar-thumb:hover {
+            background: #3b82f6;
+          }
+          .pip-message {
+            margin-bottom: 12px;
+            animation: fadeIn 0.3s ease-out;
+          }
+          .pip-message-content {
+            display: flex;
+            gap: 10px;
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+          }
+          .pip-avatar-container {
+            flex-shrink: 0;
+          }
+          .pip-avatar, .pip-avatar-initial {
+            width: 32px;
+            height: 32px;
+            border-radius: 6px;
+            overflow: hidden;
+          }
+          .pip-avatar {
+            object-fit: cover;
+          }
+          .pip-avatar-initial {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            color: white;
+            font-weight: bold;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+          }
+          .pip-text-container {
+            flex: 1;
+            min-width: 0;
+          }
+          .pip-author {
+            font-weight: 600;
+            font-size: 13px;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+          .pip-badge {
+            font-size: 10px;
+            padding: 1px 4px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6);
+            color: white;
+            border-radius: 3px;
+            font-weight: 500;
+          }
+          .pip-text {
+            font-size: 14px;
+            color: #94a3b8;
+            line-height: 1.4;
+            word-break: break-word;
+          }
+          .pip-emoji {
+            width: 20px;
+            height: 20px;
+            vertical-align: middle;
+            margin: 0 1px;
+          }
+          .pip-time {
+            font-size: 11px;
+            color: #64748b;
+            margin-top: 4px;
+            text-align: right;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="pip-header">
+          <div class="pip-title">YouTube Live Chat PIP</div>
+          <div style="font-size: 12px; color: #94a3b8;">${state.currentVideoId || '未接続'}</div>
+        </div>
+        <div id="pip-chat">
+          <div style="text-align: center; color: #64748b; padding: 20px; font-size: 13px;">
+            PIPウィンドウ<br>メッセージがここに表示されます
+          </div>
+        </div>
+        <script>
+          // メッセージ受信用のイベントリスナー
+          window.addEventListener('message', function(event) {
+            const pipChat = document.getElementById('pip-chat');
+            
+            if (event.data.type === 'chatMessage') {
+              const message = document.createElement('div');
+              message.className = 'pip-message';
+              
+              // 絵文字を含むテキストを処理
+              const textWithEmojis = event.data.text;
+              
+              // アバターを表示
+              const avatarHtml = event.data.avatarUrl ? 
+                \`<img src="\${event.data.avatarUrl}" alt="\${event.data.author}" class="pip-avatar" crossorigin="anonymous" onerror="this.style.display='none'; this.parentElement.innerHTML='<div class=\"pip-avatar-initial\" style=\"background: linear-gradient(135deg, #3b82f6, #8b5cf6); color: white; font-weight: bold; font-size: 12px; display: flex; align-items: center; justify-content: center;\">\${event.data.authorInitial}</div>';" />\` :
+                \`<div class="pip-avatar-initial">\${event.data.authorInitial}</div>\`;
+              
+              message.innerHTML = \`
+                <div class="pip-message-content">
+                  <div class="pip-avatar-container">
+                    \${avatarHtml}
+                  </div>
+                  <div class="pip-text-container">
+                    <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
+                    <div class="pip-text">\${textWithEmojis}</div>
+                    <div class="pip-time">\${event.data.time}</div>
+                  </div>
+                </div>
+              \`;
+              
+              pipChat.appendChild(message);
+              
+              // ユーザーが一番下近くにいる場合のみ自動スクロール
+              const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= 50;
+              if (isNearBottom) {
+                pipChat.scrollTop = pipChat.scrollHeight;
+              }
+            }
+          });
+          
+          // PIPウィンドウ内でのスクロールイベント
+          const pipChat = document.getElementById('pip-chat');
+          pipChat.addEventListener('scroll', function() {
+            // 必要に応じてスクロール状態を管理
+            const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= 50;
+            // ここでスクロール状態を管理するロジックを追加できます
+          });
+        <\/script>
+      </body>
+      </html>
+    `);
+    
+    state.pipWindow = pipWindow;
+    state.pipIsNative = false;
+    pipToggleBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+      </svg>
+      PIPを閉じる
+    `;
+    
+    addSuccessMessage('PIPウィンドウを開きました');
+    
+    // PIPウィンドウが閉じられたときの処理
+    const checkPIPClosed = setInterval(() => {
+      if (state.pipWindow && state.pipWindow.closed) {
+        clearInterval(checkPIPClosed);
         state.pipWindow = null;
         state.pipIsNative = false;
         pipToggleBtn.innerHTML = `
@@ -997,628 +1486,25 @@
           </svg>
           PIPウィンドウ
         `;
-        addMetaMessage('PIPウィンドウを閉じました');
-      } else {
-        // Document Picture-in-Picture APIを試す
-        if ('documentPictureInPicture' in window) {
-          try {
-            const pipWindow = await documentPictureInPicture.requestWindow({
-              width: 400,
-              height: 600
-            });
-            
-            // PiPウィンドウのコンテンツを設定
-            pipWindow.document.body.innerHTML = `
-              <style>
-                body {
-                  font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-                  background: #0a0e17;
-                  color: #e2e8f0;
-                  margin: 0;
-                  padding: 0;
-                  overflow: hidden;
-                }
-                .pip-header {
-                  background: #151b2a;
-                  padding: 12px 16px;
-                  border-bottom: 1px solid #2a3249;
-                  display: flex;
-                  justify-content: space-between;
-                  align-items: center;
-                  position: sticky;
-                  top: 0;
-                  z-index: 10;
-                }
-                .pip-title {
-                  font-weight: 600;
-                  font-size: 14px;
-                }
-                #pip-chat {
-                  height: calc(100vh - 90px);
-                  overflow-y: auto;
-                  padding: 16px;
-                  scrollbar-width: thin;
-                  scrollbar-color: #2a3249 #1e2538;
-                }
-                #pip-chat::-webkit-scrollbar {
-                  width: 6px;
-                }
-                #pip-chat::-webkit-scrollbar-track {
-                  background: #1e2538;
-                  border-radius: 3px;
-                }
-                #pip-chat::-webkit-scrollbar-thumb {
-                  background: #2a3249;
-                  border-radius: 3px;
-                }
-                #pip-chat::-webkit-scrollbar-thumb:hover {
-                  background: #3b82f6;
-                }
-                .pip-message {
-                  background: #1e2538;
-                  border-radius: 8px;
-                  padding: 12px;
-                  margin-bottom: 12px;
-                  border-left: 3px solid #3b82f6;
-                  animation: fadeIn 0.3s ease-out;
-                }
-                .pip-message-inner {
-                  display: flex;
-                  gap: 12px;
-                }
-                .pip-avatar-container {
-                  flex-shrink: 0;
-                }
-                .pip-avatar {
-                  width: 32px;
-                  height: 32px;
-                  border-radius: 8px;
-                  object-fit: cover;
-                  border: 1px solid #2a3249;
-                }
-                .pip-avatar-initial {
-                  width: 32px;
-                  height: 32px;
-                  border-radius: 8px;
-                  background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  color: white;
-                  font-weight: bold;
-                  font-size: 14px;
-                  border: 1px solid #2a3249;
-                }
-                .pip-content {
-                  flex: 1;
-                  min-width: 0;
-                }
-                @keyframes fadeIn {
-                  from { opacity: 0; transform: translateY(5px); }
-                  to { opacity: 1; transform: translateY(0); }
-                }
-                .pip-author {
-                  font-weight: 600;
-                  font-size: 13px;
-                  margin-bottom: 4px;
-                  display: flex;
-                  align-items: center;
-                  gap: 6px;
-                }
-                .pip-badge {
-                  font-size: 10px;
-                  padding: 1px 4px;
-                  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-                  color: white;
-                  border-radius: 3px;
-                  font-weight: 500;
-                }
-                .pip-text {
-                  font-size: 14px;
-                  color: #94a3b8;
-                  line-height: 1.4;
-                  word-break: break-word;
-                }
-                .pip-emoji {
-                  width: 20px;
-                  height: 20px;
-                  vertical-align: middle;
-                  margin: 0 1px;
-                }
-                .pip-time {
-                  font-size: 11px;
-                  color: #64748b;
-                  margin-top: 4px;
-                  text-align: right;
-                }
-                #pip-scroll-to-bottom {
-                  position: absolute;
-                  bottom: 40px;
-                  right: 16px;
-                  width: 32px;
-                  height: 32px;
-                  border-radius: 50%;
-                  background: #3b82f6;
-                  color: white;
-                  border: none;
-                  cursor: pointer;
-                  display: flex;
-                  align-items: center;
-                  justify-content: center;
-                  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-                  transition: all 0.2s;
-                  z-index: 100;
-                  opacity: 0;
-                  transform: translateY(10px);
-                  pointer-events: none;
-                }
-                #pip-scroll-to-bottom.visible {
-                  opacity: 1;
-                  transform: translateY(0);
-                  pointer-events: all;
-                }
-                #pip-scroll-to-bottom:hover {
-                  background: #2563eb;
-                  transform: translateY(-2px);
-                  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
-                }
-              </style>
-              <div class="pip-header">
-                <div class="pip-title">YouTube Live Chat PIP</div>
-                <div style="font-size: 12px; color: #94a3b8;">${state.currentVideoId || '未接続'}</div>
-              </div>
-              <div id="pip-chat">
-                <div style="text-align: center; color: #64748b; padding: 20px; font-size: 13px;">
-                  PIPウィンドウ<br>メッセージがここに表示されます
-                </div>
-              </div>
-              <button id="pip-scroll-to-bottom" class="scroll-to-bottom" title="最新のメッセージへ">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
-                </svg>
-              </button>
-              <script>
-                // 状態管理
-                const pipState = {
-                  autoScrollEnabled: true,
-                  userScrolledUp: false
-                };
-                
-                const pipChat = document.getElementById('pip-chat');
-                const pipScrollBtn = document.getElementById('pip-scroll-to-bottom');
-                
-                // PIPスクロール処理
-                function scrollPIPToBottom() {
-                  pipChat.scrollTop = pipChat.scrollHeight;
-                  pipState.userScrolledUp = false;
-                  updatePIPScrollButton();
-                }
-                
-                // PIPスクロールボタン更新
-                function updatePIPScrollButton() {
-                  const scrollThreshold = 50;
-                  const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
-                  
-                  if (!isNearBottom && pipChat.children.length > 1) {
-                    pipState.autoScrollEnabled = false;
-                    pipState.userScrolledUp = true;
-                    pipScrollBtn.classList.add('visible');
-                  } else {
-                    pipScrollBtn.classList.remove('visible');
-                  }
-                }
-                
-                // スクロールイベントリスナー
-                pipChat.addEventListener('scroll', () => {
-                  updatePIPScrollButton();
-                });
-                
-                // スクロールダウンボタンのイベント
-                pipScrollBtn.addEventListener('click', () => {
-                  scrollPIPToBottom();
-                  pipState.autoScrollEnabled = true;
-                  pipScrollBtn.classList.remove('visible');
-                });
-                
-                // 初期状態で一番下にスクロール
-                setTimeout(() => {
-                  scrollPIPToBottom();
-                }, 100);
-                
-                // メッセージ受信用のイベントリスナー
-                window.addEventListener('message', function(event) {
-                  if (event.data.type === 'chatMessage') {
-                    const message = document.createElement('div');
-                    message.className = 'pip-message';
-                    
-                    // 投稿者のアバターHTML
-                    const avatarHTML = event.data.avatarUrl ? 
-                      \`<img src="\${event.data.avatarUrl}" alt="\${event.data.author}" class="pip-avatar">\` :
-                      \`<div class="pip-avatar-initial">\${event.data.authorInitial}</div>\`;
-                    
-                    // 絵文字を含むテキストを処理
-                    const textWithEmojis = event.data.text.replace(
-                      /<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/g,
-                      (match, src, alt) => \`<img src="\${src}" alt="\${alt}" class="pip-emoji">\`
-                    );
-                    
-                    message.innerHTML = \`
-                      <div class="pip-message-inner">
-                        <div class="pip-avatar-container">
-                          \${avatarHTML}
-                        </div>
-                        <div class="pip-content">
-                          <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
-                          <div class="pip-text">\${textWithEmojis}</div>
-                          <div class="pip-time">\${event.data.time}</div>
-                        </div>
-                      </div>
-                    \`;
-                    
-                    pipChat.appendChild(message);
-                    
-                    // 自動スクロールが有効な場合のみ一番下までスクロール
-                    if (pipState.autoScrollEnabled) {
-                      scrollPIPToBottom();
-                    } else {
-                      updatePIPScrollButton();
-                    }
-                  }
-                });
-              <\/script>
-            `;
-            
-            state.pipWindow = pipWindow;
-            state.pipIsNative = true;
-            pipToggleBtn.innerHTML = `
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-              </svg>
-              PIPを閉じる
-            `;
-            
-            addSuccessMessage('ネイティブPIPウィンドウを開きました');
-            
-            // PiPウィンドウが閉じられたときの処理
-            pipWindow.addEventListener('pagehide', () => {
-              state.pipWindow = null;
-              state.pipIsNative = false;
-              pipToggleBtn.innerHTML = `
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 11h-8v6h8v-6zm4-8v18H1V3h22zm-2 16H3V5h18v14z"/>
-                </svg>
-                PIPウィンドウ
-              `;
-            });
-            
-            return;
-          } catch (error) {
-            console.warn('Native PiP failed:', error);
-            addMetaMessage('ネイティブPIPに失敗しました。代替方法を使用します。');
-          }
-        }
-        
-        // ネイティブPiPが使えない場合は通常のウィンドウを開く
-        const pipWindow = window.open('', 'YouTubeLiveChatPIP', 
-          `width=400,height=600,left=${window.screenLeft + 20},top=${window.screenTop + 20}`);
-        
-        if (!pipWindow) {
-          addErrorMessage('ポップアップがブロックされました。ブラウザの設定を確認してください。');
-          return;
-        }
-        
-        // PIPウィンドウのコンテンツを設定（通常ウィンドウ用）
-        pipWindow.document.write(`
-          <!DOCTYPE html>
-          <html>
-          <head>
-            <meta charset="utf-8">
-            <title>YouTube Live Chat - PIP</title>
-            <style>
-              body {
-                font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-                background: #0a0e17;
-                color: #e2e8f0;
-                margin: 0;
-                padding: 0;
-                overflow: hidden;
-              }
-              .pip-header {
-                background: #151b2a;
-                padding: 12px 16px;
-                border-bottom: 1px solid #2a3249;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                position: sticky;
-                top: 0;
-                z-index: 10;
-              }
-              .pip-title {
-                font-weight: 600;
-                font-size: 14px;
-              }
-              #pip-chat {
-                height: calc(100vh - 90px);
-                overflow-y: auto;
-                padding: 16px;
-                scrollbar-width: thin;
-                scrollbar-color: #2a3249 #1e2538;
-              }
-              #pip-chat::-webkit-scrollbar {
-                width: 6px;
-              }
-              #pip-chat::-webkit-scrollbar-track {
-                background: #1e2538;
-                border-radius: 3px;
-              }
-              #pip-chat::-webkit-scrollbar-thumb {
-                background: #2a3249;
-                border-radius: 3px;
-              }
-              #pip-chat::-webkit-scrollbar-thumb:hover {
-                background: #3b82f6;
-              }
-              .pip-message {
-                background: #1e2538;
-                border-radius: 8px;
-                padding: 12px;
-                margin-bottom: 12px;
-                border-left: 3px solid #3b82f6;
-                animation: fadeIn 0.3s ease-out;
-              }
-              .pip-message-inner {
-                display: flex;
-                gap: 12px;
-              }
-              .pip-avatar-container {
-                flex-shrink: 0;
-              }
-              .pip-avatar {
-                width: 32px;
-                height: 32px;
-                border-radius: 8px;
-                object-fit: cover;
-                border: 1px solid #2a3249;
-              }
-              .pip-avatar-initial {
-                width: 32px;
-                height: 32px;
-                border-radius: 8px;
-                background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                color: white;
-                font-weight: bold;
-                font-size: 14px;
-                border: 1px solid #2a3249;
-              }
-              .pip-content {
-                flex: 1;
-                min-width: 0;
-              }
-              @keyframes fadeIn {
-                from { opacity: 0; transform: translateY(5px); }
-                to { opacity: 1; transform: translateY(0); }
-              }
-              .pip-author {
-                font-weight: 600;
-                font-size: 13px;
-                margin-bottom: 4px;
-                display: flex;
-                align-items: center;
-                gap: 6px;
-              }
-              .pip-badge {
-                font-size: 10px;
-                padding: 1px 4px;
-                background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-                color: white;
-                border-radius: 3px;
-                font-weight: 500;
-              }
-              .pip-text {
-                font-size: 14px;
-                color: #94a3b8;
-                line-height: 1.4;
-                word-break: break-word;
-              }
-              .pip-emoji {
-                width: 20px;
-                height: 20px;
-                vertical-align: middle;
-                margin: 0 1px;
-              }
-              .pip-time {
-                font-size: 11px;
-                color: #64748b;
-                margin-top: 4px;
-                text-align: right;
-              }
-              #pip-scroll-to-bottom {
-                position: absolute;
-                bottom: 40px;
-                right: 16px;
-                width: 32px;
-                height: 32px;
-                border-radius: 50%;
-                background: #3b82f6;
-                color: white;
-                border: none;
-                cursor: pointer;
-                display: flex;
-                align-items: center;
-                justify-content: center;
-                box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
-                transition: all 0.2s;
-                z-index: 100;
-                opacity: 0;
-                transform: translateY(10px);
-                pointer-events: none;
-              }
-              #pip-scroll-to-bottom.visible {
-                opacity: 1;
-                transform: translateY(0);
-                pointer-events: all;
-              }
-              #pip-scroll-to-bottom:hover {
-                background: #2563eb;
-                transform: translateY(-2px);
-                box-shadow: 0 6px 12px rgba(0, 0, 0, 0.4);
-              }
-            </style>
-          </head>
-          <body>
-            <div class="pip-header">
-              <div class="pip-title">YouTube Live Chat PIP</div>
-              <div style="font-size: 12px; color: #94a3b8;">${state.currentVideoId || '未接続'}</div>
-            </div>
-            <div id="pip-chat">
-              <div style="text-align: center; color: #64748b; padding: 20px; font-size: 13px;">
-                PIPウィンドウ<br>メッセージがここに表示されます
-              </div>
-            </div>
-            <button id="pip-scroll-to-bottom" class="scroll-to-bottom" title="最新のメッセージへ">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
-              </svg>
-            </button>
-            <script>
-              // 状態管理
-              const pipState = {
-                autoScrollEnabled: true,
-                userScrolledUp: false
-              };
-              
-              const pipChat = document.getElementById('pip-chat');
-              const pipScrollBtn = document.getElementById('pip-scroll-to-bottom');
-              
-              // PIPスクロール処理
-              function scrollPIPToBottom() {
-                pipChat.scrollTop = pipChat.scrollHeight;
-                pipState.userScrolledUp = false;
-                updatePIPScrollButton();
-              }
-              
-              // PIPスクロールボタン更新
-              function updatePIPScrollButton() {
-                const scrollThreshold = 50;
-                const isNearBottom = pipChat.scrollHeight - pipChat.scrollTop - pipChat.clientHeight <= scrollThreshold;
-                
-                if (!isNearBottom && pipChat.children.length > 1) {
-                  pipState.autoScrollEnabled = false;
-                  pipState.userScrolledUp = true;
-                  pipScrollBtn.classList.add('visible');
-                } else {
-                  pipScrollBtn.classList.remove('visible');
-                }
-              }
-              
-              // スクロールイベントリスナー
-              pipChat.addEventListener('scroll', () => {
-                updatePIPScrollButton();
-              });
-              
-              // スクロールダウンボタンのイベント
-              pipScrollBtn.addEventListener('click', () => {
-                scrollPIPToBottom();
-                pipState.autoScrollEnabled = true;
-                pipScrollBtn.classList.remove('visible');
-              });
-              
-              // 初期状態で一番下にスクロール
-              setTimeout(() => {
-                scrollPIPToBottom();
-              }, 100);
-              
-              // メッセージ受信用のイベントリスナー
-              window.addEventListener('message', function(event) {
-                if (event.data.type === 'chatMessage') {
-                  const message = document.createElement('div');
-                  message.className = 'pip-message';
-                  
-                  // 投稿者のアバターHTML
-                  const avatarHTML = event.data.avatarUrl ? 
-                    \`<img src="\${event.data.avatarUrl}" alt="\${event.data.author}" class="pip-avatar">\` :
-                    \`<div class="pip-avatar-initial">\${event.data.authorInitial}</div>\`;
-                  
-                  // 絵文字を含むテキストを処理
-                  const textWithEmojis = event.data.text.replace(
-                    /<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/g,
-                    (match, src, alt) => \`<img src="\${src}" alt="\${alt}" class="pip-emoji">\`
-                  );
-                  
-                  message.innerHTML = \`
-                    <div class="pip-message-inner">
-                      <div class="pip-avatar-container">
-                        \${avatarHTML}
-                      </div>
-                      <div class="pip-content">
-                        <div class="pip-author">\${event.data.author} \${event.data.badge ? \`<span class="pip-badge">\${event.data.badge}</span>\` : ''}</div>
-                        <div class="pip-text">\${textWithEmojis}</div>
-                        <div class="pip-time">\${event.data.time}</div>
-                      </div>
-                    </div>
-                  \`;
-                  
-                  pipChat.appendChild(message);
-                  
-                  // 自動スクロールが有効な場合のみ一番下までスクロール
-                  if (pipState.autoScrollEnabled) {
-                    scrollPIPToBottom();
-                  } else {
-                    updatePIPScrollButton();
-                  }
-                }
-              });
-            <\/script>
-          </body>
-          </html>
-        `);
-        
-        state.pipWindow = pipWindow;
-        state.pipIsNative = false;
-        pipToggleBtn.innerHTML = `
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-          </svg>
-          PIPを閉じる
-        `;
-        
-        addSuccessMessage('PIPウィンドウを開きました');
-        
-        // PIPウィンドウが閉じられたときの処理
-        const checkPIPClosed = setInterval(() => {
-          if (state.pipWindow && state.pipWindow.closed) {
-            clearInterval(checkPIPClosed);
-            state.pipWindow = null;
-            state.pipIsNative = false;
-            pipToggleBtn.innerHTML = `
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M19 11h-8v6h8v-6zm4-8v18H1V3h22zm-2 16H3V5h18v14z"/>
-              </svg>
-              PIPウィンドウ
-            `;
-          }
-        }, 1000);
       }
-    };
-    
-    // 初期化
-    updateStats();
-    addMetaMessage('YouTubeライブチャットビューアーが起動しました');
-    
-    // 初期状態で一番下にスクロール
-    setTimeout(() => {
-      scrollToBottom();
-    }, 100);
-    
-    // 入力例を表示
-    setTimeout(() => {
-      urlInput.value = '';
-      urlInput.placeholder = "例: https://www.youtube.com/watch?v=VIDEOID";
-    }, 100);
+    }, 1000);
+  }
+};
+
+// 初期化
+updateStats();
+addMetaMessage('YouTubeライブチャットビューアーが起動しました');
+
+// 初期状態で一番下にスクロール
+setTimeout(() => {
+  scrollToBottom();
+}, 100);
+
+// 入力例を表示
+setTimeout(() => {
+  urlInput.value = '';
+  urlInput.placeholder = "例: https://www.youtube.com/watch?v=VIDEOID";
+}, 100);
   </script>
 </body>
 </html>
