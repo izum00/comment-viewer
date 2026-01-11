@@ -453,28 +453,6 @@
       box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
     }
     
-    /* iframeモード用のスタイル */
-    body.iframe-mode {
-      padding: 0;
-      background: var(--bg-primary);
-    }
-    
-    body.iframe-mode .controls-panel,
-    body.iframe-mode header {
-      display: none;
-    }
-    
-    body.iframe-mode .chat-container {
-      height: 100vh;
-      border-radius: 0;
-      border: none;
-    }
-    
-    body.iframe-mode .scroll-to-bottom {
-      bottom: 60px;
-      right: 15px;
-    }
-    
     @media (max-width: 768px) {
       .container {
         padding: 10px;
@@ -583,18 +561,6 @@
     </div>
   </div>
 <script>
-// URLパラメータをチェックしてiframeモードか判定
-const urlParams = new URLSearchParams(window.location.search);
-const isIframeMode = urlParams.has('iframe');
-
-if (isIframeMode) {
-  // iframeモードの場合、操作メニューを隠す
-  document.body.classList.add('iframe-mode');
-  
-  // iframe内ではWebSocket接続を行わない
-  console.log('iframe mode activated - controls hidden');
-}
-
 // 状態管理
 const state = {
     messageCount: 0,
@@ -620,86 +586,76 @@ const timestampEl = document.getElementById('timestamp');
 const chatWindow = document.getElementById('chat-window');
 const scrollToBottomBtn = document.getElementById('scroll-to-bottom');
 
-// iframeモードでない場合のみWebSocket接続を行う
-if (!isIframeMode) {
-  // WebSocket接続関数
-  function connectWebSocket() {
-      if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) {
-          return state.ws;
-      }
-      
-      state.ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
-      
-      state.ws.onopen = () => {
-          state.isConnected = true;
-          state.isConnecting = false;
-          statusEl.textContent = '接続済み';
-          statusEl.style.color = 'var(--success)';
-          addMetaMessage('WebSocketサーバーに接続しました');
-          
-          // 接続後にvideoIdを送信
-          if (state.currentVideoId) {
-              state.ws.send(JSON.stringify({ type: 'connect', videoId: state.currentVideoId }));
-              addSuccessMessage(`YouTube Liveに接続中: ${state.currentVideoId}`);
-              statusEl.textContent = 'YouTubeに接続中...';
-          }
-      };
-      
-      state.ws.onclose = () => {
-          state.isConnected = false;
-          state.isConnecting = false;
-          statusEl.textContent = '未接続';
-          statusEl.style.color = 'var(--text-secondary)';
-          addMetaMessage('WebSocketサーバーから切断されました');
-      };
-      
-      state.ws.onerror = (e) => {
-          state.isConnecting = false;
-          addErrorMessage(`WebSocketエラー: ${e.message}`);
-      };
-      
-      state.ws.onmessage = (ev) => {
-          try {
-              const data = JSON.parse(ev.data);
-              displayMessage(data);
-          } catch (e) {
-              // 生データが来た場合の処理
-              if (ev.data.includes('"type":"chat"')) {
-                  try {
-                      const data = JSON.parse(ev.data);
-                      displayMessage(data);
-                  } catch (parseError) {
-                      addErrorMessage(`データ解析エラー: ${parseError.message}`);
-                  }
-              } else {
-                  addMetaMessage(ev.data);
-              }
-          }
-      };
-      
-      return state.ws;
-  }
-
-  // WebSocket切断関数
-  function disconnectWebSocket() {
-      if (state.ws) {
-          if (state.ws.readyState === WebSocket.OPEN) {
-              state.ws.send(JSON.stringify({ type: 'disconnect' }));
-          }
-          state.ws.close();
-          state.ws = null;
-      }
-      state.isConnected = false;
-      state.isConnecting = false;
-      state.currentVideoId = null;
-  }
-} else {
-  // iframeモードの場合、親ウィンドウからのメッセージを監視
-  window.addEventListener('message', function(event) {
-    if (event.data.type === 'chatMessage') {
-      displayMessageFromParent(event.data);
+// WebSocket接続関数
+function connectWebSocket() {
+    if (state.ws && (state.ws.readyState === WebSocket.OPEN || state.ws.readyState === WebSocket.CONNECTING)) {
+        return state.ws;
     }
-  });
+    
+    state.ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+    
+    state.ws.onopen = () => {
+        state.isConnected = true;
+        state.isConnecting = false;
+        statusEl.textContent = '接続済み';
+        statusEl.style.color = 'var(--success)';
+        addMetaMessage('WebSocketサーバーに接続しました');
+        
+        // 接続後にvideoIdを送信
+        if (state.currentVideoId) {
+            state.ws.send(JSON.stringify({ type: 'connect', videoId: state.currentVideoId }));
+            addSuccessMessage(`YouTube Liveに接続中: ${state.currentVideoId}`);
+            statusEl.textContent = 'YouTubeに接続中...';
+        }
+    };
+    
+    state.ws.onclose = () => {
+        state.isConnected = false;
+        state.isConnecting = false;
+        statusEl.textContent = '未接続';
+        statusEl.style.color = 'var(--text-secondary)';
+        addMetaMessage('WebSocketサーバーから切断されました');
+    };
+    
+    state.ws.onerror = (e) => {
+        state.isConnecting = false;
+        addErrorMessage(`WebSocketエラー: ${e.message}`);
+    };
+    
+    state.ws.onmessage = (ev) => {
+        try {
+            const data = JSON.parse(ev.data);
+            displayMessage(data);
+        } catch (e) {
+            // 生データが来た場合の処理
+            if (ev.data.includes('"type":"chat"')) {
+                try {
+                    const data = JSON.parse(ev.data);
+                    displayMessage(data);
+                } catch (parseError) {
+                    addErrorMessage(`データ解析エラー: ${parseError.message}`);
+                }
+            } else {
+                addMetaMessage(ev.data);
+            }
+        }
+    };
+    
+    return state.ws;
+}
+
+// WebSocket切断関数
+function disconnectWebSocket() {
+    if (state.ws) {
+        if (state.ws.readyState === WebSocket.OPEN) {
+            state.ws.send(JSON.stringify({ type: 'disconnect' }));
+        }
+        state.ws.close();
+        state.ws = null;
+    }
+    state.isConnected = false;
+    state.isConnecting = false;
+    state.currentVideoId = null;
 }
 
 // メッセージ表示関数
@@ -826,16 +782,6 @@ function displayMessage(data) {
                     // 自動スクロールが無効ならボタンを表示
                     updateScrollButton();
                 }
-                
-                // PIPウィンドウに転送
-                sendToPIP({
-                    author: author.name || '匿名ユーザー',
-                    text: plainText || '(メッセージなし)',
-                    formattedText: messageText || '(メッセージなし)',
-                    time: formatTime(timestamp),
-                    badge: badgeText,
-                    avatarUrl: avatarUrl
-                });
             }
         } 
         // メタ情報の場合
@@ -849,48 +795,6 @@ function displayMessage(data) {
     } catch (error) {
         console.error('メッセージ表示エラー:', error);
         addErrorMessage(`データ解析エラー: ${error.message}`);
-    }
-}
-
-// 親ウィンドウからのメッセージを表示（iframeモード用）
-function displayMessageFromParent(messageData) {
-    state.messageCount++;
-    updateStats();
-    
-    const messageEl = document.createElement('div');
-    messageEl.className = 'message';
-    
-    const timestamp = new Date();
-    
-    messageEl.innerHTML = `
-        <div class="author-avatar">
-            ${messageData.avatarUrl ? `<img src="${messageData.avatarUrl}" alt="${messageData.author}" crossorigin="anonymous">` : 
-                `<div style="background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary)); width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">${messageData.author ? messageData.author.charAt(0) : '?'}</div>`}
-        </div>
-        <div class="message-content">
-            <div class="message-header">
-                <span class="author-name">${messageData.author || '匿名ユーザー'}</span>
-                ${messageData.badge ? `<span class="author-badge">${messageData.badge}</span>` : ''}
-            </div>
-            <div class="message-text">${messageData.formattedText || messageData.text || '(メッセージなし)'}</div>
-            <div class="message-time">${messageData.time || formatTime(timestamp)}</div>
-        </div>
-    `;
-    
-    // 既存の空状態を削除
-    const emptyState = chat.querySelector('.empty-state');
-    if (emptyState) {
-        emptyState.remove();
-    }
-    
-    // チャットに追加
-    chat.appendChild(messageEl);
-    
-    // 自動スクロールが有効な場合のみ一番下までスクロール
-    if (state.autoScrollEnabled && !state.userScrolledUp) {
-        scrollToBottom();
-    } else {
-        updateScrollButton();
     }
 }
 
@@ -994,77 +898,59 @@ function updateStats() {
     });
 }
 
-// PIPウィンドウにメッセージを送信
-function sendToPIP(messageData) {
-    if (!state.pipWindow) return;
-    
-    try {
-        // PIPウィンドウ内のiframeにメッセージを転送
-        state.pipWindow.postMessage({
-            type: 'chatMessage',
-            ...messageData
-        }, '*');
-    } catch (error) {
-        console.error('PIP転送エラー:', error);
+// 接続ボタンのイベント
+connectBtn.onclick = () => {
+    const url = urlInput.value.trim();
+    if (!url) {
+        addErrorMessage('YouTubeライブURLを入力してください');
+        return;
     }
-}
+    
+    // URLからvideoIdを抽出
+    let videoId = null;
+    try {
+        const u = new URL(url);
+        videoId = u.searchParams.get('v') || u.pathname.split('/').pop();
+    } catch {
+        // URLでない場合はvideoIdとみなす
+        videoId = url;
+    }
+    
+    if (!videoId) {
+        addErrorMessage('有効なVideo IDを取得できませんでした');
+        return;
+    }
+    
+    state.currentVideoId = videoId;
+    
+    if (!state.isConnected || state.isConnecting) {
+        // WebSocketが接続されていない場合は接続
+        if (state.ws && (state.ws.readyState === WebSocket.CLOSING || state.ws.readyState === WebSocket.CLOSED)) {
+            disconnectWebSocket();
+        }
+        
+        state.isConnecting = true;
+        statusEl.textContent = '接続中...';
+        addMetaMessage('WebSocketに接続中...');
+        
+        connectWebSocket();
+    } else if (state.isConnected) {
+        // 既に接続されている場合はvideoIdのみ送信
+        state.ws.send(JSON.stringify({ type: 'connect', videoId }));
+        addSuccessMessage(`YouTube Liveに接続中: ${videoId}`);
+        statusEl.textContent = 'YouTubeに接続中...';
+    }
+};
 
-// iframeモードでない場合のみ接続ボタンを有効化
-if (!isIframeMode) {
-  // 接続ボタンのイベント
-  connectBtn.onclick = () => {
-      const url = urlInput.value.trim();
-      if (!url) {
-          addErrorMessage('YouTubeライブURLを入力してください');
-          return;
-      }
-      
-      // URLからvideoIdを抽出
-      let videoId = null;
-      try {
-          const u = new URL(url);
-          videoId = u.searchParams.get('v') || u.pathname.split('/').pop();
-      } catch {
-          // URLでない場合はvideoIdとみなす
-          videoId = url;
-      }
-      
-      if (!videoId) {
-          addErrorMessage('有効なVideo IDを取得できませんでした');
-          return;
-      }
-      
-      state.currentVideoId = videoId;
-      
-      if (!state.isConnected || state.isConnecting) {
-          // WebSocketが接続されていない場合は接続
-          if (state.ws && (state.ws.readyState === WebSocket.CLOSING || state.ws.readyState === WebSocket.CLOSED)) {
-              disconnectWebSocket();
-          }
-          
-          state.isConnecting = true;
-          statusEl.textContent = '接続中...';
-          addMetaMessage('WebSocketに接続中...');
-          
-          connectWebSocket();
-      } else if (state.isConnected) {
-          // 既に接続されている場合はvideoIdのみ送信
-          state.ws.send(JSON.stringify({ type: 'connect', videoId }));
-          addSuccessMessage(`YouTube Liveに接続中: ${videoId}`);
-          statusEl.textContent = 'YouTubeに接続中...';
-      }
-  };
-
-  // 切断ボタンのイベント
-  disconnectBtn.onclick = () => {
-      if (state.isConnected || state.isConnecting) {
-          disconnectWebSocket();
-          addMetaMessage('接続を切断しました');
-          statusEl.textContent = '未接続';
-          statusEl.style.color = 'var(--text-secondary)';
-      }
-  };
-}
+// 切断ボタンのイベント
+disconnectBtn.onclick = () => {
+    if (state.isConnected || state.isConnecting) {
+        disconnectWebSocket();
+        addMetaMessage('接続を切断しました');
+        statusEl.textContent = '未接続';
+        statusEl.style.color = 'var(--text-secondary)';
+    }
+};
 
 // PIPウィンドウ機能
 pipToggleBtn.onclick = async () => {
@@ -1085,12 +971,6 @@ pipToggleBtn.onclick = async () => {
         `;
         addMetaMessage('PIPウィンドウを閉じました');
     } else {
-        // 現在のURLにiframeパラメータを追加
-        const currentUrl = window.location.href;
-        const iframeUrl = currentUrl.includes('?') ? 
-            currentUrl + '&iframe=true' : 
-            currentUrl + '?iframe=true';
-        
         // Document Picture-in-Picture APIを試す
         if ('documentPictureInPicture' in window) {
             try {
@@ -1099,30 +979,87 @@ pipToggleBtn.onclick = async () => {
                     height: 600
                 });
                 
-                // PiPウィンドウにiframeを埋め込む
+                // PiPウィンドウに現在のページ全体をiframeで表示
                 pipWindow.document.body.innerHTML = `
                     <style>
-                        body, html {
+                        * {
                             margin: 0;
                             padding: 0;
-                            width: 100%;
-                            height: 100%;
-                            overflow: hidden;
+                            box-sizing: border-box;
                         }
-                        iframe {
+                        body {
+                            background: #0a0e17;
+                            overflow: hidden;
+                            width: 100%;
+                            height: 100vh;
+                        }
+                        #pip-iframe {
                             width: 100%;
                             height: 100%;
                             border: none;
+                            background: #0a0e17;
+                        }
+                        .pip-controls {
+                            position: absolute;
+                            top: 10px;
+                            right: 10px;
+                            z-index: 1000;
+                            display: flex;
+                            gap: 5px;
+                            opacity: 0;
+                            transition: opacity 0.3s;
+                        }
+                        .pip-controls:hover {
+                            opacity: 1;
+                        }
+                        .pip-control-btn {
+                            background: rgba(59, 130, 246, 0.8);
+                            color: white;
+                            border: none;
+                            border-radius: 4px;
+                            width: 30px;
+                            height: 30px;
+                            cursor: pointer;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            backdrop-filter: blur(5px);
                         }
                     </style>
-                    <iframe src="${iframeUrl}"></iframe>
+                    <iframe 
+                        id="pip-iframe" 
+                        src="${window.location.href}"
+                        sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                        allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                    ></iframe>
+                    <div class="pip-controls">
+                        <button id="pip-refresh" class="pip-control-btn" title="再読み込み">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                                <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                            </svg>
+                        </button>
+                        <button id="pip-close" class="pip-control-btn" title="閉じる">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                        </button>
+                    </div>
                     <script>
-                        // 親ウィンドウからのメッセージを受信してiframeに転送
+                        const iframe = document.getElementById('pip-iframe');
+                        const refreshBtn = document.getElementById('pip-refresh');
+                        const closeBtn = document.getElementById('pip-close');
+                        
+                        refreshBtn.addEventListener('click', () => {
+                            iframe.src = iframe.src;
+                        });
+                        
+                        closeBtn.addEventListener('click', () => {
+                            window.close();
+                        });
+                        
+                        // 親ウィンドウからのメッセージ転送
                         window.addEventListener('message', function(event) {
-                            const iframe = document.querySelector('iframe');
-                            if (iframe && iframe.contentWindow && event.data.type === 'chatMessage') {
-                                iframe.contentWindow.postMessage(event.data, '*');
-                            }
+                            iframe.contentWindow.postMessage(event.data, '*');
                         });
                     <\/script>
                 `;
@@ -1159,14 +1096,14 @@ pipToggleBtn.onclick = async () => {
         
         // ネイティブPiPが使えない場合は通常のウィンドウを開く
         const pipWindow = window.open('', 'YouTubeLiveChatPIP', 
-            `width=400,height=600,left=${window.screenLeft + 20},top=${window.screenTop + 20}`);
+            `width=600,height=800,left=${window.screenLeft + 20},top=${window.screenTop + 20},resizable=yes,scrollbars=yes`);
         
         if (!pipWindow) {
             addErrorMessage('ポップアップがブロックされました。ブラウザの設定を確認してください。');
             return;
         }
         
-        // PIPウィンドウにiframeを埋め込む
+        // PIPウィンドウに現在のページ全体をiframeで表示
         pipWindow.document.write(`
             <!DOCTYPE html>
             <html>
@@ -1174,29 +1111,90 @@ pipToggleBtn.onclick = async () => {
                 <meta charset="utf-8">
                 <title>YouTube Live Chat - PIP</title>
                 <style>
-                    body, html {
+                    * {
                         margin: 0;
                         padding: 0;
-                        width: 100%;
-                        height: 100%;
-                        overflow: hidden;
+                        box-sizing: border-box;
                     }
-                    iframe {
+                    body {
+                        background: #0a0e17;
+                        overflow: hidden;
+                        width: 100%;
+                        height: 100vh;
+                        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+                    }
+                    #pip-iframe {
                         width: 100%;
                         height: 100%;
                         border: none;
+                        background: #0a0e17;
+                    }
+                    .pip-controls {
+                        position: fixed;
+                        top: 10px;
+                        right: 10px;
+                        z-index: 1000;
+                        display: flex;
+                        gap: 5px;
+                        opacity: 0;
+                        transition: opacity 0.3s;
+                    }
+                    .pip-controls:hover {
+                        opacity: 1;
+                    }
+                    .pip-control-btn {
+                        background: rgba(59, 130, 246, 0.8);
+                        color: white;
+                        border: none;
+                        border-radius: 4px;
+                        width: 30px;
+                        height: 30px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        justify-content: center;
+                        backdrop-filter: blur(5px);
+                    }
+                    .pip-control-btn:hover {
+                        background: rgba(59, 130, 246, 1);
                     }
                 </style>
             </head>
             <body>
-                <iframe src="${iframeUrl}"></iframe>
+                <iframe 
+                    id="pip-iframe" 
+                    src="${window.location.href}"
+                    sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+                    allow="autoplay; clipboard-write; encrypted-media; picture-in-picture"
+                ></iframe>
+                <div class="pip-controls">
+                    <button id="pip-refresh" class="pip-control-btn" title="再読み込み">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                            <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                        </svg>
+                    </button>
+                    <button id="pip-close" class="pip-control-btn" title="閉じる">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                        </svg>
+                    </button>
+                </div>
                 <script>
-                    // 親ウィンドウからのメッセージを受信してiframeに転送
+                    const iframe = document.getElementById('pip-iframe');
+                    const refreshBtn = document.getElementById('pip-refresh');
+                    const closeBtn = document.getElementById('pip-close');
+                    
+                    refreshBtn.addEventListener('click', () => {
+                        iframe.src = iframe.src;
+                    });
+                    
+                    closeBtn.addEventListener('click', () => {
+                        window.close();
+                    });
+                    
+                    // 親ウィンドウからのメッセージ転送
                     window.addEventListener('message', function(event) {
-                        const iframe = document.querySelector('iframe');
-                        if (iframe && iframe.contentWindow && event.data.type === 'chatMessage') {
-                            iframe.contentWindow.postMessage(event.data, '*');
-                        }
+                        iframe.contentWindow.postMessage(event.data, '*');
                     });
                 <\/script>
             </body>
@@ -1246,12 +1244,10 @@ setTimeout(() => {
     urlInput.placeholder = "例: https://www.youtube.com/watch?v=VIDEOID";
 }, 100);
 
-// ページ終了時にWebSocketを切断（iframeモードでない場合）
-if (!isIframeMode) {
-  window.addEventListener('beforeunload', () => {
-      disconnectWebSocket();
-  });
-}
+// ページ終了時にWebSocketを切断
+window.addEventListener('beforeunload', () => {
+    disconnectWebSocket();
+});
   </script>
 </body>
 </html>
