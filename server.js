@@ -5,6 +5,11 @@ import { WebSocketServer } from "ws";
 import { Innertube } from "youtubei.js";
 import ytCommentScraper from "yt-comment-scraper";
 const { getComments } = ytCommentScraper;
+import axios from "axios";
+axios.defaults.headers.common["User-Agent"] =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+
+axios.defaults.headers.common["Accept-Language"] = "en-US,en;q=0.9";
 
 const app = express();
 app.use(express.static("public")); // public/index.html をルートに置く
