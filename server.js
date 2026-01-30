@@ -3,7 +3,8 @@ import express from "express";
 import http from "http";
 import { WebSocketServer } from "ws";
 import { Innertube } from "youtubei.js";
-import { getComments } from "yt-comment-scraper";
+import ytCommentScraper from "yt-comment-scraper";
+const { getComments } = ytCommentScraper;
 
 const app = express();
 app.use(express.static("public")); // public/index.html をルートに置く
