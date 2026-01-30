@@ -1,0 +1,1130 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>YouTubeコメントビューアー - Tech Edition</title>
+  <style>
+    :root {
+      --bg-primary: #0a0e17;
+      --bg-secondary: #151b2a;
+      --bg-tertiary: #1e2538;
+      --border-color: #2a3249;
+      --text-primary: #e2e8f0;
+      --text-secondary: #94a3b8;
+      --text-muted: #64748b;
+      --accent-primary: #3b82f6;
+      --accent-secondary: #8b5cf6;
+      --accent-glow: rgba(59, 130, 246, 0.3);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --error: #ef4444;
+    }
+    
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Segoe UI', 'SF Pro Display', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-primary);
+      color: var(--text-primary);
+      padding: 20px;
+      min-height: 100vh;
+      background-image: 
+        radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.05) 0%, transparent 20%),
+        radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.05) 0%, transparent 20%);
+    }
+    
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 20px;
+    }
+    
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 20px;
+    }
+    
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-secondary));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      font-size: 18px;
+      color: white;
+    }
+    
+    .logo-text h1 {
+      font-size: 24px;
+      font-weight: 700;
+      background: linear-gradient(90deg, var(--accent-primary), var(--accent-secondary));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      letter-spacing: -0.5px;
+    }
+    
+    .logo-text p {
+      font-size: 14px;
+      color: var(--text-secondary);
+      margin-top: 2px;
+    }
+    
+    .controls-panel {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      padding: 20px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    }
+    
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    
+    .panel-title {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .panel-title::before {
+      content: '';
+      width: 4px;
+      height: 18px;
+      background: var(--accent-primary);
+      border-radius: 2px;
+    }
+    
+    .pip-button {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+    
+    .pip-button:hover {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+    
+    .url-input-container {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    
+    #url {
+      flex: 1;
+      padding: 14px 16px;
+      background: var(--bg-tertiary);
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      color: var(--text-primary);
+      font-size: 15px;
+      transition: all 0.2s;
+    }
+    
+    #url:focus {
+      outline: none;
+      border-color: var(--accent-primary);
+      box-shadow: 0 0 0 3px var(--accent-glow);
+    }
+    
+    #url::placeholder {
+      color: var(--text-muted);
+    }
+    
+    .control-buttons {
+      display: flex;
+      gap: 12px;
+    }
+    
+    .btn {
+      padding: 12px 24px;
+      border-radius: 10px;
+      font-weight: 600;
+      font-size: 15px;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .btn-connect {
+      background: var(--accent-primary);
+      color: white;
+      flex: 1;
+    }
+    
+    .btn-connect:hover {
+      background: #2563eb;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+    }
+    
+    .btn-disconnect {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+    }
+    
+    .btn-disconnect:hover {
+      background: var(--border-color);
+    }
+    
+    .chat-container {
+      background: var(--bg-secondary);
+      border-radius: 12px;
+      border: 1px solid var(--border-color);
+      overflow: hidden;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+      height: 600px;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    
+    .chat-header {
+      padding: 16px 20px;
+      background: var(--bg-tertiary);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .chat-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    
+    .chat-stats {
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .online-indicator {
+      width: 8px;
+      height: 8px;
+      background: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+    
+    #chat {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border-color) var(--bg-tertiary);
+    }
+    
+    #chat::-webkit-scrollbar {
+      width: 8px;
+    }
+    
+    #chat::-webkit-scrollbar-track {
+      background: var(--bg-tertiary);
+      border-radius: 4px;
+    }
+    
+    #chat::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 4px;
+    }
+    
+    #chat::-webkit-scrollbar-thumb:hover {
+      background: var(--accent-primary);
+    }
+    
+    .message {
+      display: flex;
+      gap: 12px;
+      padding: 16px;
+      background: var(--bg-tertiary);
+      border-radius: 12px;
+      border-left: 4px solid var(--border-color);
+      transition: all 0.2s;
+      animation: fadeIn 0.3s ease-out;
+    }
+    
+    .message:hover {
+      border-left-color: var(--accent-primary);
+      background: rgba(30, 37, 56, 0.8);
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    
+    .author-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      overflow: hidden;
+      flex-shrink: 0;
+      border: 2px solid var(--border-color);
+    }
+    
+    .author-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    
+    .message-content {
+      flex: 1;
+    }
+    
+    .message-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+    
+    .author-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .author-name {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: 15px;
+    }
+    
+    .comment-meta {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+    
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .meta-icon {
+      width: 14px;
+      height: 14px;
+    }
+    
+    .reply-count {
+      color: var(--accent-primary);
+      cursor: pointer;
+      font-weight: 500;
+    }
+    
+    .reply-count:hover {
+      text-decoration: underline;
+    }
+    
+    .message-text {
+      color: var(--text-secondary);
+      font-size: 15px;
+      line-height: 1.5;
+      word-break: break-word;
+      margin-bottom: 8px;
+    }
+    
+    .message-time {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    
+    .meta-message {
+      padding: 12px 20px;
+      background: var(--bg-tertiary);
+      border-radius: 8px;
+      color: var(--text-secondary);
+      font-size: 14px;
+      border-left: 4px solid var(--text-muted);
+      text-align: center;
+    }
+    
+    .error-message {
+      border-left-color: var(--error);
+      color: var(--error);
+    }
+    
+    .success-message {
+      border-left-color: var(--success);
+      color: var(--success);
+    }
+    
+    .loading-message {
+      border-left-color: var(--accent-primary);
+      color: var(--accent-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .loading-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid var(--border-color);
+      border-top: 2px solid var(--accent-primary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--text-muted);
+      text-align: center;
+      padding: 40px;
+    }
+    
+    .empty-state-icon {
+      font-size: 48px;
+      margin-bottom: 16px;
+      opacity: 0.5;
+    }
+    
+    .status-bar {
+      padding: 12px 20px;
+      background: var(--bg-tertiary);
+      border-top: 1px solid var(--border-color);
+      font-size: 14px;
+      color: var(--text-secondary);
+      display: flex;
+      justify-content: space-between;
+    }
+    
+    .load-more-container {
+      display: flex;
+      justify-content: center;
+      margin-top: 16px;
+    }
+    
+    .load-more-btn {
+      background: var(--bg-tertiary);
+      color: var(--text-primary);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .load-more-btn:hover:not(:disabled) {
+      background: var(--accent-primary);
+      border-color: var(--accent-primary);
+    }
+    
+    .load-more-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .scroll-to-bottom {
+      position: absolute;
+      bottom: 80px;
+      right: 20px;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background: var(--accent-primary);
+      color: white;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+      transition: all 0.2s;
+      z-index: 100;
+      opacity: 0;
+      transform: translateY(20px);
+      pointer-events: none;
+    }
+    
+    .scroll-to-bottom.visible {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: all;
+    }
+    
+    .scroll-to-bottom:hover {
+      background: var(--accent-secondary);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    }
+    
+    @media (max-width: 768px) {
+      .container {
+        padding: 10px;
+      }
+      
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 16px;
+      }
+      
+      .url-input-container {
+        flex-direction: column;
+      }
+      
+      .control-buttons {
+        flex-direction: column;
+      }
+      
+      .btn {
+        width: 100%;
+      }
+      
+      .scroll-to-bottom {
+        bottom: 70px;
+        right: 15px;
+      }
+      
+      .message-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      
+      .comment-meta {
+        width: 100%;
+        justify-content: space-between;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div class="logo">
+        <div class="logo-icon">YT</div>
+        <div class="logo-text">
+          <h1>YouTubeコメントビューアー</h1>
+          <p>Tech Edition • 動画コメントビューアー</p>
+        </div>
+      </div>
+    </header>
+    
+    <div class="controls-panel">
+      <div class="panel-header">
+        <div class="panel-title">コメント取得</div>
+        <button id="pip-toggle" class="pip-button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 11h-8v6h8v-6zm4-8v18H1V3h22zm-2 16H3V5h18v14z"/>
+          </svg>
+          PIPウィンドウ
+        </button>
+      </div>
+      
+      <div class="url-input-container">
+        <input 
+          type="text" 
+          id="url" 
+          placeholder="YouTube動画URLを入力 (例: https://www.youtube.com/watch?v=VIDEOID または VIDEOIDのみ)"
+        />
+      </div>
+      
+      <div class="control-buttons">
+        <button id="load-comments" class="btn btn-connect">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z"/>
+          </svg>
+          コメントを読み込む
+        </button>
+        <button id="clear-comments" class="btn btn-disconnect">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+          </svg>
+          クリア
+        </button>
+      </div>
+    </div>
+    
+    <div class="chat-container" id="chat-window">
+      <div class="chat-header">
+        <div class="chat-title">動画コメント</div>
+        <div class="chat-stats">
+          <div class="online-indicator"></div>
+          <span id="comment-count">0 コメント</span>
+        </div>
+      </div>
+      
+      <div id="chat">
+        <div class="empty-state">
+          <div class="empty-state-icon">💬</div>
+          <h3>コメントが表示されます</h3>
+          <p>YouTube動画URLを入力して「コメントを読み込む」をクリックしてください</p>
+        </div>
+      </div>
+      
+      <!-- もっと読み込むボタン -->
+      <div class="load-more-container" id="load-more-container" style="display: none;">
+        <button id="load-more" class="load-more-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+          </svg>
+          もっと読み込む
+        </button>
+      </div>
+      
+      <!-- スクロールダウンボタン -->
+      <button id="scroll-to-bottom" class="scroll-to-bottom" title="最新のコメントへ">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+        </svg>
+      </button>
+      
+      <div class="status-bar">
+        <div id="status">準備完了</div>
+        <div id="timestamp">--:--:--</div>
+      </div>
+    </div>
+  </div>
+  
+  <script>
+  // 状態管理
+  const state = {
+    videoId: null,
+    continuationToken: null,
+    isLoading: false,
+    commentCount: 0,
+    pipWindow: null,
+    pipIsNative: false,
+    autoScrollEnabled: true,
+    userScrolledUp: false
+  };
+
+  // DOM要素の取得
+  const chat = document.getElementById('chat');
+  const urlInput = document.getElementById('url');
+  const loadCommentsBtn = document.getElementById('load-comments');
+  const clearCommentsBtn = document.getElementById('clear-comments');
+  const pipToggleBtn = document.getElementById('pip-toggle');
+  const commentCountEl = document.getElementById('comment-count');
+  const statusEl = document.getElementById('status');
+  const timestampEl = document.getElementById('timestamp');
+  const scrollToBottomBtn = document.getElementById('scroll-to-bottom');
+  const loadMoreBtn = document.getElementById('load-more');
+  const loadMoreContainer = document.getElementById('load-more-container');
+
+  // 動画IDの抽出
+  function extractVideoId(url) {
+    if (!url) return null;
+    
+    // VIDEO IDのみの場合
+    if (!url.includes('http') && !url.includes('youtube.com') && !url.includes('youtu.be')) {
+      return url.trim();
+    }
+    
+    try {
+      const urlObj = new URL(url);
+      
+      // youtu.be形式
+      if (urlObj.hostname.includes('youtu.be')) {
+        return urlObj.pathname.replace('/', '');
+      }
+      
+      // youtube.com形式
+      if (urlObj.hostname.includes('youtube.com')) {
+        const searchParams = new URLSearchParams(urlObj.search);
+        return searchParams.get('v') || urlObj.pathname.split('/').pop();
+      }
+      
+      return null;
+    } catch (error) {
+      // URLが不正な場合は入力値をそのまま返す
+      return url.trim();
+    }
+  }
+
+  // コメントの取得
+  async function fetchComments(videoId, continuation = null) {
+    if (!videoId) {
+      addErrorMessage('有効なVideo IDを入力してください');
+      return null;
+    }
+    
+    state.isLoading = true;
+    updateStatus('コメントを取得中...');
+    
+    try {
+      const url = continuation 
+        ? `/api/comments?videoId=${videoId}&continuation=${continuation}`
+        : `/api/comments?videoId=${videoId}`;
+      
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error(`サーバーエラー: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      
+      state.isLoading = false;
+      updateStatus('取得完了');
+      
+      return data;
+    } catch (error) {
+      state.isLoading = false;
+      addErrorMessage(`コメントの取得に失敗しました: ${error.message}`);
+      updateStatus('エラー');
+      return null;
+    }
+  }
+
+  // コメントの表示
+  function displayComments(comments, isFirstLoad = false) {
+    if (!comments || comments.length === 0) {
+      addMetaMessage(isFirstLoad ? 'コメントが見つかりませんでした' : 'これ以上のコメントはありません');
+      loadMoreContainer.style.display = 'none';
+      return;
+    }
+    
+    // 最初の読み込み時に空状態を削除
+    if (isFirstLoad) {
+      const emptyState = chat.querySelector('.empty-state');
+      if (emptyState) {
+        emptyState.remove();
+      }
+    }
+    
+    // コメントを表示
+    comments.forEach(comment => {
+      displayComment(comment);
+    });
+    
+    // 統計情報の更新
+    state.commentCount += comments.length;
+    updateStats();
+    
+    // 自動スクロールが有効な場合のみ一番下までスクロール
+    if (state.autoScrollEnabled && !state.userScrolledUp && isFirstLoad) {
+      setTimeout(() => scrollToBottom(), 100);
+    } else {
+      updateScrollButton();
+    }
+    
+    // 「もっと読み込む」ボタンを表示
+    loadMoreContainer.style.display = 'flex';
+  }
+
+  // コメント要素の作成
+  function displayComment(comment) {
+    const commentEl = document.createElement('div');
+    commentEl.className = 'message';
+    commentEl.id = `comment-${comment.commentId}`;
+    
+    // ランダムなアバターの色を生成
+    const colors = [
+      'linear-gradient(135deg, #3b82f6, #8b5cf6)',
+      'linear-gradient(135deg, #10b981, #3b82f6)',
+      'linear-gradient(135deg, #f59e0b, #ef4444)',
+      'linear-gradient(135deg, #8b5cf6, #ec4899)',
+      'linear-gradient(135deg, #06b6d4, #3b82f6)'
+    ];
+    const randomColor = colors[Math.floor(Math.random() * colors.length)];
+    
+    // アバターの初期文字
+    const avatarLetter = comment.author ? comment.author.charAt(0).toUpperCase() : '?';
+    
+    // いいね数と返信数の表示
+    const likesText = comment.likes > 0 ? `${comment.likes} いいね` : '';
+    const repliesText = comment.replyCount > 0 ? `${comment.replyCount} 返信` : '';
+    
+    // コメントHTMLの構築
+    commentEl.innerHTML = `
+      <div class="author-avatar">
+        <div style="background: ${randomColor}; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 18px;">
+          ${avatarLetter}
+        </div>
+      </div>
+      <div class="message-content">
+        <div class="message-header">
+          <div class="author-info">
+            <span class="author-name">${comment.author || '匿名ユーザー'}</span>
+          </div>
+          <div class="comment-meta">
+            <span class="meta-item">
+              <svg class="meta-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+              </svg>
+              ${comment.published || '時間不明'}
+            </span>
+            ${likesText ? `<span class="meta-item">
+              <svg class="meta-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/>
+              </svg>
+              ${likesText}
+            </span>` : ''}
+            ${repliesText ? `<span class="reply-count" data-comment-id="${comment.commentId}">
+              <svg class="meta-icon" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M21.99 4c0-1.1-.89-2-1.99-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h14l4 4-.01-18zM18 14H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+              </svg>
+              ${repliesText}
+            </span>` : ''}
+          </div>
+        </div>
+        <div class="message-text">${comment.text || '(コメント内容なし)'}</div>
+        <div class="message-time">コメントID: ${comment.commentId.substring(0, 8)}...</div>
+      </div>
+    `;
+    
+    // チャットに追加
+    chat.appendChild(commentEl);
+    
+    // 返信ボタンのイベントリスナーを追加
+    if (comment.replyCount > 0) {
+      const replyBtn = commentEl.querySelector('.reply-count');
+      if (replyBtn) {
+        replyBtn.addEventListener('click', () => {
+          // 返信の取得機能は後で実装可能
+          addMetaMessage(`返信の取得機能は現在実装中です (コメントID: ${comment.commentId})`);
+        });
+      }
+    }
+  }
+
+  // メタメッセージを追加
+  function addMetaMessage(text) {
+    const metaEl = document.createElement('div');
+    metaEl.className = 'meta-message';
+    metaEl.textContent = text;
+    chat.appendChild(metaEl);
+  }
+
+  // エラーメッセージを追加
+  function addErrorMessage(text) {
+    const errorEl = document.createElement('div');
+    errorEl.className = 'meta-message error-message';
+    errorEl.textContent = text;
+    chat.appendChild(errorEl);
+  }
+
+  // 成功メッセージを追加
+  function addSuccessMessage(text) {
+    const successEl = document.createElement('div');
+    successEl.className = 'meta-message success-message';
+    successEl.textContent = text;
+    chat.appendChild(successEl);
+  }
+
+  // ローディングメッセージを追加
+  function addLoadingMessage(text) {
+    const loadingEl = document.createElement('div');
+    loadingEl.className = 'meta-message loading-message';
+    loadingEl.innerHTML = `
+      <div class="loading-spinner"></div>
+      <span>${text}</span>
+    `;
+    chat.appendChild(loadingEl);
+    return loadingEl;
+  }
+
+  // 一番下までスクロール
+  function scrollToBottom() {
+    chat.scrollTop = chat.scrollHeight;
+    state.userScrolledUp = false;
+    state.autoScrollEnabled = true;
+    updateScrollButton();
+  }
+
+  // スクロールボタンの表示を更新
+  function updateScrollButton() {
+    const scrollThreshold = 100;
+    const isNearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight <= scrollThreshold;
+    
+    if (!isNearBottom && chat.children.length > 0) {
+      state.autoScrollEnabled = false;
+      scrollToBottomBtn.classList.add('visible');
+    } else {
+      scrollToBottomBtn.classList.remove('visible');
+    }
+  }
+
+  // スクロールイベントリスナー
+  chat.addEventListener('scroll', () => {
+    const scrollThreshold = 100;
+    const isNearBottom = chat.scrollHeight - chat.scrollTop - chat.clientHeight <= scrollThreshold;
+    
+    if (!isNearBottom) {
+      state.userScrolledUp = true;
+      state.autoScrollEnabled = false;
+    }
+    
+    updateScrollButton();
+  });
+
+  // スクロールダウンボタンのイベント
+  scrollToBottomBtn.addEventListener('click', () => {
+    scrollToBottom();
+  });
+
+  // 統計情報の更新
+  function updateStats() {
+    commentCountEl.textContent = `${state.commentCount} コメント`;
+    timestampEl.textContent = new Date().toLocaleTimeString('ja-JP', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  }
+
+  // ステータスの更新
+  function updateStatus(status) {
+    statusEl.textContent = status;
+    
+    if (status.includes('エラー')) {
+      statusEl.style.color = 'var(--error)';
+    } else if (status.includes('取得中')) {
+      statusEl.style.color = 'var(--accent-primary)';
+    } else if (status.includes('完了')) {
+      statusEl.style.color = 'var(--success)';
+    } else {
+      statusEl.style.color = 'var(--text-secondary)';
+    }
+  }
+
+  // コメント読み込みボタンのイベント
+  loadCommentsBtn.onclick = async () => {
+    const url = urlInput.value.trim();
+    if (!url) {
+      addErrorMessage('YouTube動画URLを入力してください');
+      return;
+    }
+    
+    // Video IDの抽出
+    const videoId = extractVideoId(url);
+    if (!videoId) {
+      addErrorMessage('有効なVideo IDを抽出できませんでした');
+      return;
+    }
+    
+    state.videoId = videoId;
+    state.continuationToken = null;
+    
+    // コメントをクリア
+    chat.innerHTML = '';
+    state.commentCount = 0;
+    updateStats();
+    
+    // ローディング表示
+    const loadingEl = addLoadingMessage('コメントを取得中...');
+    
+    // コメントの取得
+    const data = await fetchComments(videoId);
+    
+    // ローディング表示を削除
+    if (loadingEl.parentNode) {
+      loadingEl.remove();
+    }
+    
+    if (data) {
+      if (data.comments && data.comments.length > 0) {
+        displayComments(data.comments, true);
+        state.continuationToken = data.continuation;
+        addSuccessMessage(`${data.comments.length}件のコメントを取得しました`);
+      } else {
+        addMetaMessage('コメントが見つかりませんでした');
+      }
+    }
+  };
+
+  // もっと読み込むボタンのイベント
+  loadMoreBtn.onclick = async () => {
+    if (!state.videoId || !state.continuationToken || state.isLoading) {
+      return;
+    }
+    
+    loadMoreBtn.disabled = true;
+    loadMoreBtn.innerHTML = `
+      <div class="loading-spinner"></div>
+      <span>読み込み中...</span>
+    `;
+    
+    const data = await fetchComments(state.videoId, state.continuationToken);
+    
+    loadMoreBtn.disabled = false;
+    loadMoreBtn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+        <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+      </svg>
+      もっと読み込む
+    `;
+    
+    if (data) {
+      if (data.comments && data.comments.length > 0) {
+        displayComments(data.comments, false);
+        state.continuationToken = data.continuation;
+        
+        if (!data.continuation) {
+          loadMoreContainer.style.display = 'none';
+        }
+      } else {
+        loadMoreContainer.style.display = 'none';
+      }
+    }
+  };
+
+  // クリアボタンのイベント
+  clearCommentsBtn.onclick = () => {
+    chat.innerHTML = `
+      <div class="empty-state">
+        <div class="empty-state-icon">💬</div>
+        <h3>コメントが表示されます</h3>
+        <p>YouTube動画URLを入力して「コメントを読み込む」をクリックしてください</p>
+      </div>
+    `;
+    
+    state.videoId = null;
+    state.continuationToken = null;
+    state.commentCount = 0;
+    updateStats();
+    updateStatus('準備完了');
+    loadMoreContainer.style.display = 'none';
+    
+    addMetaMessage('コメントをクリアしました');
+  };
+
+  // PIPウィンドウ機能（簡易版）
+  pipToggleBtn.onclick = () => {
+    addMetaMessage('PIP機能は現在のバージョンでは簡易実装されています');
+    
+    const pipWindow = window.open('', 'YouTubeCommentsPIP', 
+      `width=500,height=700,left=${window.screenLeft + 20},top=${window.screenTop + 20},resizable=yes,scrollbars=yes`);
+    
+    if (!pipWindow) {
+      addErrorMessage('ポップアップがブロックされました。ブラウザの設定を確認してください。');
+      return;
+    }
+    
+    pipWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>YouTubeコメント - PIP</title>
+        <style>
+          body { 
+            margin: 0; 
+            padding: 20px; 
+            background: #0a0e17; 
+            color: #e2e8f0; 
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
+          }
+          .pip-header {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            color: #3b82f6;
+            text-align: center;
+          }
+          .pip-notice {
+            padding: 20px;
+            background: #1e2538;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 40px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="pip-header">YouTubeコメントビューアー (PIP)</div>
+        <div class="pip-notice">
+          このPIPウィンドウはデモバージョンです。<br>
+          完全な機能はメインウィンドウでご利用ください。
+        </div>
+      </body>
+      </html>
+    `);
+    
+    state.pipWindow = pipWindow;
+  };
+
+  // 初期化
+  updateStats();
+  updateStatus('準備完了');
+  addMetaMessage('YouTube動画コメントビューアーが起動しました');
+
+  // URL入力フィールドに例を表示
+  urlInput.value = '';
+  urlInput.placeholder = "例: https://www.youtube.com/watch?v=dQw4w9WgXcQ";
+
+  // Enterキーでコメント読み込み
+  urlInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      loadCommentsBtn.click();
+    }
+  });
+  </script>
+</body>
+</html>
