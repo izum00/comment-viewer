@@ -124,8 +124,7 @@ app.get("/api/comments", async (req, res) => {
   try {
     const result = await getComments({
       videoId,
-      continuation,
-      sortBy: "newest", // 最新順
+      continuation
     });
 
     let comments = result.comments || [];
