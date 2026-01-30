@@ -3,6 +3,7 @@ import express from "express";
 import http from "http";
 import { WebSocketServer } from "ws";
 import { Innertube } from "youtubei.js";
+import { getComments } from "yt-comment-scraper";
 
 const app = express();
 app.use(express.static("public")); // public/index.html をルートに置く
@@ -108,3 +109,51 @@ const server = http.createServer(app);
 
   server.listen(PORT, () => console.log(`Listening on ${PORT}`));
 })();
+
+//------------------------------------------------
+
+// 通常コメント取得API（yt-comment-scraper）
+app.get("/api/comments", async (req, res) => {
+  const { videoId, after, limit = 50, continuation } = req.query;
+
+  if (!videoId) {
+    return res.status(400).json({ error: "videoId required" });
+  }
+
+  try {
+    const result = await getComments({
+      videoId,
+      continuation,
+      sortBy: "newest", // 最新順
+    });
+
+    let comments = result.comments || [];
+
+    // 「あるコメント以降」を実現
+    if (after) {
+      const index = comments.findIndex(c => c.commentId === after);
+      if (index !== -1) {
+        comments = comments.slice(index + 1);
+      }
+    }
+
+    comments = comments.slice(0, Number(limit));
+
+    res.json({
+      comments: comments.map(c => ({
+        commentId: c.commentId,
+        author: c.author?.name,
+        authorId: c.author?.id,
+        text: c.text,
+        published: c.publishedTime,
+        likes: c.likes,
+        replyCount: c.replyCount,
+      })),
+      continuation: result.continuation || null,
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: err?.message || String(err),
+    });
+  }
+});
